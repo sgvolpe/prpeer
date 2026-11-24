@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PR Peer</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/index.css"><link rel="stylesheet" href="/dist/map.css"><link rel="stylesheet" href="/ui.css"></head><body>
+<aside>
+  <h3 id="wt">Worktree</h3>
+  <div id="tsearch"><input id="tq" data-i18n-placeholder="tree.search" data-i18n-title="tree.searchTip" placeholder="Buscar: .md  *.sh  test  tests/*" title="Texto, .ext, o con comodines (* ?). Varios términos separados por espacio o coma."><button id="tHide" data-i18n-title="tree.hideMatch" title="Ocultar del mapa lo que coincide" disabled>🙈</button><button id="tOnly" data-i18n-title="tree.onlyMatch" title="Mostrar en el mapa solo lo que coincide" disabled>👁</button></div>
+  <div id="tchips"></div>
+  <div id="tmeta" style="flex-wrap:wrap;gap:2px 8px"><span id="tcount"></span><a id="lnkT" data-i18n-title="tree.linkedTip" title="Mostrar u ocultar los archivos vinculados (los que no cambiaron pero se relacionan con el PR)"></a><span><a id="tColl" data-i18n="tree.collapse" data-i18n-title="tree.collapseTip" title="Colapsar todos los módulos">▸ colapsar</a> · <a id="tExp" data-i18n="tree.expand" data-i18n-title="tree.expandTip" title="Expandir todos los módulos">▾ expandir</a></span></div>
+  <div id="tree"></div>
+  <div id="legend"><span><i style="background:var(--chg)"></i><span data-i18n="legend.changed">cambiado</span></span><span><i style="background:var(--lnk)"></i><span data-i18n="legend.linked">vinculado</span></span><span><i style="background:#444"></i><span data-i18n="legend.unrelated">sin relación</span></span><span><i style="background:#b48cff"></i><span data-i18n="legend.sameDir">misma carpeta</span></span></div>
+</aside>
+<div class="rz" id="rzl" data-i18n-title="panel.resize" title="Arrastrá para cambiar el ancho · doble clic: ensanchar/restaurar"><button data-i18n-title="panel.toggle" title="Colapsar/expandir">◀</button></div>
+<main id="map">
+  <div id="top_" style="cursor:pointer"><img src="/logo-peer.gif" alt="" width="18" height="18"><a href="/home" onclick="event.stopPropagation()" class="home" data-i18n="top.home" data-i18n-title="top.homeTip" title="Elegir otro repo, PR o commit">Inicio</a><span class="sep">/</span><b id="ttl"></b><span class="tst"><span class="c" id="nc"></span><span class="l" id="nl"></span></span><span id="jrk"></span><span id="hidn" data-i18n-title="top.hiddenTip" title="Opciones de lo oculto"></span><button class="tab setb" data-settings data-i18n="set.btn" data-i18n-title="set.tip" title="Conexiones, repos locales, apariencia y datos">⚙ Ajustes</button></div>
+  <div id="rf"></div>
+  <div id="wchart"></div>
+</main>
+<div class="rz" id="rzr" data-i18n-title="panel.resize" title="Arrastrá para cambiar el ancho · doble clic: ensanchar/restaurar"><button data-i18n-title="panel.toggle" title="Colapsar/expandir">▶</button></div>
+<aside class="r">
+  <h3 class="ah"><span class="at"><span data-i18n="assist.title">Asistente</span> · <span id="ctxlvl"></span></span><span id="chip"></span><button id="rvT" type="button" data-i18n-title="assist.reviewsTip" title="Revisiones a demanda: ticket vs cambio, comentarios, seguridad, tests y cambios que rompen"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7 1.5a5.5 5.5 0 014.4 8.8l3 3-1.1 1.1-3-3A5.5 5.5 0 117 1.5zm0 1.5a4 4 0 100 8 4 4 0 000-8z"/></svg></button><button id="jrT" type="button" data-i18n-title="jira.tip" title="Ticket de Jira del PR: link y contenido">🎫</button><button id="stT" type="button" data-i18n-title="assist.storyTip" title="Contar el cambio como una historia, página por funcionalidad"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A1.5 1.5 0 013.5 1H13v11H3.5a.5.5 0 000 1H13v1.5H3.5A2 2 0 012 13V2.5zM3.5 2.5v8.6c.15-.07.32-.1.5-.1H11.5v-8.5H3.5z"/></svg></button><button id="ctxT" type="button" data-i18n-title="assist.ctxTip" title="Mostrar u ocultar el resumen y el contexto">▾</button></h3>
+  <div id="thread"><div id="story" hidden></div><div id="rev" hidden></div><div id="jrp" hidden></div><div id="ctx"></div><div id="chat"><div class="m a" data-i18n="chat.hello">Elegí archivos en el mapa y preguntame sobre el PR.</div></div></div>
+  <small id="usage" style="display:block;opacity:.7;font-size:11px;padding:2px 8px;text-align:right"></small>
+  <form id="f"><input id="q" data-i18n-placeholder="chat.placeholder" placeholder="Preguntá sobre lo seleccionado…" autocomplete="off"><button data-i18n="chat.send">Enviar</button></form>
+</aside>
+<dialog id="dlg"><div id="dhead"><span><b data-i18n="diff.title">Diff completo</b> <small data-i18n="diff.hint">· pasá el mouse o clic derecho sobre una línea o sección para ver la explicación</small></span><button onclick="dlg.close()">✕</button></div><div id="dbody"><div id="dside"></div><div id="dmain"></div></div><div id="dexp" hidden></div></dialog>
+<div id="hmenu"></div>
+<script>window.PRDATA=/*PRDATA*/null</script>
+<script defer src="/locales.js"></script><script defer src="/i18n.js"></script>
+<script defer src="/query.js"></script>
+<script defer src="/dist/map.js"></script>
+<script defer src="/app.js"></script><script defer src="/theme.js"></script><script defer src="/settings.js"></script></body></html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title data-i18n="home.title">PR Peer · Inicio</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/home.css"><link rel="stylesheet" href="/ui.css"></head><body>
+<header><b class="brand"><img src="/logo-peer.gif" alt="" width="44" height="44">PR Peer</b><button class="tab" id="connBtn" data-settings style="margin-left:auto" data-i18n="set.btn" data-i18n-title="set.tip" title="Conexiones, repos locales, apariencia y datos">⚙ Ajustes</button></header>
+<main>
+  <section>
+    <div class="bar src"><div class="tabs" id="src"></div><span class="mut" id="srcnote"></span></div>
+    <div class="bar"><input id="q" data-i18n-placeholder="home.search" placeholder="Buscar repo u owner · @owner busca sus PRs y commits"><button class="tab" id="refresh" data-i18n-title="home.refreshTip" title="Volver a buscar clones y repos">↻</button></div>
+    <div class="bar f" id="rfilters"></div>
+    <div class="count" id="rcount"></div>
+    <div class="list" id="repos"></div>
+  </section>
+  <section>
+    <div class="bar" id="detailbar"><span class="mut" data-i18n="home.pickRepoLeft">Elegí un repo a la izquierda</span></div>
+    <div class="bar f" id="itemfilters" hidden></div>
+    <div class="count" id="icount" hidden></div>
+    <div id="msg"></div>
+    <div class="list" id="items"><div class="empty"><div class="ic">🗺️</div><b data-i18n="home.pickRepo">Elegí un repo</b><span data-i18n="home.pickRepoHint">Después abrí un PR, una rama o un commit para ver su mapa.</span></div></div>
+  </section>
+</main>
+<footer><button class="fchip" data-settings id="fAi"></button><button class="fchip" data-settings id="fJira"></button><span class="mut" id="fUse"></span><span class="mut fsp" id="fTick" aria-live="polite"></span><span>PR Peer · <span data-i18n="home.madeBy">Hecho por</span> <a href="mailto:sgvolpe@gmail.com">SGV</a></span></footer>
+<div id="busy"><div><span data-i18n="home.analyzing">Analizando…</span> <span class="mut" data-i18n="home.analyzingHint">(trae el código, arma el mapa; puede tardar)</span></div></div>
+<script defer src="/locales.js"></script><script defer src="/i18n.js"></script><script defer src="/settings.js"></script><script defer src="home.js"></script><script defer src="/theme.js"></script>
+</body></html>

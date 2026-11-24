@@ -1,0 +1,1 @@
+{ "mood": { "riskPaths": [ { "match": "payments/", "weight": 0.5 } ] } }

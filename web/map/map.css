@@ -1,0 +1,85 @@
+/* Map styles (React Flow). The .card, .fold, .md, .mm… classes come from index.html; only the canvas-specific bits live here. */
+#rf{position:absolute;inset:0 0 46px}
+.react-flow{background:transparent!important;--xy-attribution-background-color-default:transparent}
+.react-flow .fold{position:relative;width:100%;height:100%;padding:0;box-sizing:border-box;border:1px solid var(--bd);border-radius:8px;background:#0e0e0e}
+.react-flow .fold.sel{border-color:#fff}
+.react-flow .fold-head{display:block;margin:0;padding:6px 8px;font:600 12px ui-monospace,monospace;color:var(--mut);cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* modules level: the folder is a block with a large name */
+.react-flow .fold.mod{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px;text-align:center;overflow:hidden;color:var(--tx)}
+.react-flow .fold.mod .t{color:var(--tx);font-family:ui-monospace,monospace;font-weight:700;line-height:1.1;max-width:100%;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.react-flow .fold.mod .p{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;color:var(--mut)}
+.react-flow .fold.mod .s,.react-flow .fold.mod .mo{color:var(--mut);white-space:nowrap}
+.react-flow .fold.mod .mo{display:flex;gap:4px;align-items:center}
+.react-flow .card{pointer-events:all;position:relative;width:100%;margin:0;box-sizing:border-box;overflow:hidden;cursor:pointer;white-space:nowrap}
+/* single-row header: the name shrinks with an ellipsis and the numbers never overlap it; the preview goes below, full width */
+.react-flow .card .hd{display:flex;align-items:center;gap:6px;height:16px;line-height:16px}
+.react-flow .card .hd .md{flex:none;margin:0}
+.react-flow .card .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.react-flow .card .st{flex:none;float:none;margin-left:auto}
+.react-flow .card pre{display:block;height:auto;max-height:none;margin:6px 0 0;padding:6px 8px;line-height:15px;overflow:hidden}
+.react-flow .card pre span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:pre}
+.react-flow .card .more{display:block}
+.react-flow .card .mm{position:relative}
+.react-flow__handle.h{opacity:0;pointer-events:none;min-width:0;min-height:0;width:1px;height:1px;border:0}
+.react-flow__node{cursor:default}
+.react-flow__controls-button{background:#141413;color:var(--tx);border-bottom:1px solid var(--bd)}
+.react-flow__controls-button svg{fill:var(--tx)}
+.react-flow__minimap{border:1px solid var(--bd);border-radius:8px}
+.react-flow__attribution{background:transparent}
+.lvl{background:var(--pan);border:1px solid var(--bd);border-radius:8px;padding:4px 10px;color:var(--mut);font-size:12px}
+/* responsive cards: the second row of numbers (tier 2) and the resizable module */
+.react-flow .card .hd2{display:flex;gap:4px;height:14px;line-height:14px;font-size:11px;color:var(--mut)}
+.react-flow .card .hd2 .st{float:none;margin-left:0}
+.react-flow .card.t1 .nm{max-width:100%}
+.rzh{width:9px!important;height:9px!important;border-radius:3px!important;background:var(--lnk)!important;border:0!important;opacity:0;transition:opacity .12s}
+.rzl{border-color:var(--lnk)!important;opacity:0;transition:opacity .12s}
+.react-flow__node:hover .rzh,.react-flow__node:hover .rzl{opacity:.9}
+.react-flow .fmore{position:absolute;left:0;right:0;bottom:0;height:18px;line-height:18px;padding:0 8px;font-size:11px;color:var(--chg);background:#0e0e0e;border-top:1px dashed var(--bd);border-radius:0 0 8px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
+
+.react-flow .edgebtn{cursor:pointer;border:1px solid var(--bd);margin-right:6px}.react-flow .edgebtn:hover{color:var(--tx);border-color:var(--lnk)}
+
+/* nested folders: the open container carries the name and the totals in its header */
+.react-flow .fold.nest .fold-head{cursor:pointer;color:var(--tx)}.react-flow .fold.nest .fold-head small{color:var(--mut);font-weight:400;margin-left:6px}
+
+/* non-draggable nodes (nested folders) arrive with pointer-events:none: without this they get no clicks or double clicks */
+.react-flow .fold{pointer-events:all}
+
+/* animations: move, open/close, select and appear */
+/* no transform transition: the view re-anchors what is under the cursor instantly, a sliding node would drift away from it */
+.react-flow__node{transition:width .3s cubic-bezier(.2,.8,.2,1),height .3s cubic-bezier(.2,.8,.2,1)}
+.react-flow__node.dragging{transition:none} /* while dragging, the module follows the mouse with no delay */
+@keyframes pop{from{opacity:0;transform:scale(.93) translateY(4px)}to{opacity:1;transform:none}}
+.react-flow .fold,.react-flow .card{animation:pop .24s cubic-bezier(.2,.8,.2,1) both;transition:height .3s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s,background-color .25s,transform .15s}
+.react-flow .card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.react-flow .fold.mod:hover{border-color:#262624;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.react-flow .card.sel,.react-flow .fold.sel{outline:none;border-color:#fff;box-shadow:0 0 0 2px #fff,0 8px 26px rgba(74,163,255,.38);animation:pop .24s cubic-bezier(.2,.8,.2,1) both,glow .5s ease-out}
+@keyframes glow{from{box-shadow:0 0 0 2px #fff,0 0 0 14px rgba(255,255,255,.25)}to{box-shadow:0 0 0 2px #fff,0 8px 26px rgba(74,163,255,.38)}}
+.react-flow__edge-path{transition:stroke .25s,stroke-width .25s,opacity .25s}
+.react-flow__edge{transition:opacity .25s}
+@media (prefers-reduced-motion:reduce){.react-flow__node,.react-flow .fold,.react-flow .card,.react-flow__edge-path{transition:none!important;animation:none!important}}
+
+/* handle on the right edge of an open container */
+.react-flow .rzr{width:8px!important;height:44px!important;border-radius:4px!important;background:var(--lnk)!important;border:0!important;cursor:ew-resize;opacity:0;transition:opacity .15s}
+.react-flow__node:hover .rzr{opacity:.85}
+
+/* map toolbar: zoom and folder levels */
+.react-flow .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:calc(100% - 24px);margin-top:52px}/* below the #top_ bar (Home · title), which floats at the top left */
+.react-flow .tbg{display:flex;align-items:center;gap:4px;background:var(--pan);border:1px solid var(--bd);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.react-flow .tbg button{background:#141413;color:var(--tx);border:1px solid var(--bd);border-radius:6px;min-width:28px;height:28px;padding:0 8px;cursor:pointer;font:12px system-ui;white-space:nowrap}
+.react-flow .tbg button:disabled{opacity:.4;cursor:default;filter:none}
+.react-flow .tbg .pct{min-width:52px;font-variant-numeric:tabular-nums}
+.react-flow .tbg input[type=range]{width:110px;accent-color:var(--lnk)}
+.react-flow .tbg .lv{color:var(--mut);font-size:12px;padding:0 4px;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* compact bar: icons, smaller and semi-transparent until used */
+.react-flow .tb{gap:6px;margin-top:46px;opacity:.5;transition:opacity .2s}.react-flow .tb:hover,.react-flow .tb:focus-within{opacity:1}
+.react-flow .tbg{gap:2px;padding:2px 4px;border-radius:8px;background:rgba(22,26,33,.75);backdrop-filter:blur(4px);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.react-flow .tbg button{min-width:22px;height:22px;padding:0 5px;font-size:12px;line-height:1}
+.react-flow .tbg .pct{min-width:40px;font-size:11px}.react-flow .tbg input[type=range]{width:64px}.react-flow .tbg .lv{font-size:11px;padding:0 2px}
+
+/* focus: what you look at is drawn in full; the rest of what is on screen recedes (it stays context) */
+.react-flow .card.fx1{opacity:.8}
+.react-flow .card.fx0{opacity:.5;filter:saturate(.55)}
+.react-flow .card{transition:height .3s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s,background-color .25s,transform .15s,opacity .35s,filter .35s}
+.react-flow .card.fx0:hover,.react-flow .card.fx1:hover{opacity:1;filter:none}
+.react-flow .caret{cursor:pointer;padding:0 4px;margin-left:-4px}.react-flow .caret:hover{color:#fff}

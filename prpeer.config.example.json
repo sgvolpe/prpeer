@@ -1,0 +1,40 @@
+{
+  "lang": "es",
+  "default": { "provider": "anthropic", "model": "claude-opus-5-5" },
+  "repoDirs": ["~/repos"],
+  "repos": { "owner/name": "/path/to/a/clone/that/is/not/discovered/by/itself" },
+  "cacheDir": "~/.prpeer/repos",
+  "github": { "tokenEnv": "GITHUB_TOKEN" },
+  "mood": {
+    "riskWords": ["ledger", "invoice", "idempot", "refund"],
+    "riskPaths": [{ "match": "(^|/)billing/", "weight": 1 }],
+    "ignore": ["spec", "(^|/)tests?/", "(^|/)test_", "CHANGELOG", "\\.md$"],
+    "thresholds": [2, 3.5]
+  },
+  "providers": [
+    {
+      "id": "anthropic",
+      "label": "Claude (Anthropic)",
+      "type": "anthropic",
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "models": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-2"],
+      "efforts": ["low", "medium", "high", "xhigh", "max"]
+    },
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "type": "openai-compat",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "models": [],
+      "efforts": ["low", "medium", "high"]
+    },
+    {
+      "id": "ollama",
+      "label": "Ollama (local)",
+      "type": "openai-compat",
+      "baseUrl": "http://localhost:11434/v1",
+      "models": []
+    }
+  ]
+}

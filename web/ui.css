@@ -1,0 +1,154 @@
+/* Design layer shared by /home and the PR page (loaded after each page's own styles).
+   Inspired by the ponytail dashboard: warm black, thin-bordered surfaces with a minimal inner glow, segmented controls,
+   tinted chips, monospaced figures and dots with a halo. No gradients on buttons and no flashy animations.
+   The base colors are still the :root variables; they are refined here. To undo: remove the <link href="/ui.css"> from home.html and index.html. */
+:root{--bg:#060606;--pan:#0c0c0c;--bd:#1c1c1b;--bd2:#262624;--tx:#f3f2ee;--mut:#8d8b84;--faint:#5e5c55;
+  --lnk:#6aa9ff;--chg:#f1a33c;--add:#5fe08a;--del:#ff6b5b;--warn:#f1c96b;
+  --track:#141413;--seg:#1f1f1d;--btn:#141413;--btn-h:#1f1f1d;
+  --acc-bg:#6aa9ff1f;--acc-bd:#6aa9ff55;--acc-tx:#9cc4ff;
+  --ok-bg:#122016;--bad-bg:#2a1210;--warn-bg:#2a2412;
+  --r:9px;--r2:12px;--r3:16px;--card:linear-gradient(180deg,#0f0f0f,#090909);
+  --shadow:inset 0 1px 0 #ffffff09,0 12px 32px #00000059;--float:0 10px 30px #000000a6;
+  --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
+.num,#top_ .tst b,#top_ .a,#top_ .x,.card .st,.stat b{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ---- motion: only what is functional ---- */
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes shimmer{to{background-position:-100% 0}}
+.list.enter>*{animation:fade .2s ease both}
+.skrow{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--bd)}
+.skrow>div{flex:1;display:flex;flex-direction:column;gap:8px}
+.sk{border-radius:6px;background:linear-gradient(90deg,#121211 30%,#1b1b1a 50%,#121211 70%) 0 0/300% 100%;animation:shimmer 1.6s linear infinite}
+.sk.av{width:32px;height:32px;border-radius:8px;flex:none}.sk.l1{height:12px;width:55%}.sk.l2{height:9px;width:80%}
+
+/* ---- controls ---- */
+button,.tab,select,input,textarea{border-radius:var(--r)}
+button:not(:disabled),.tab{transition:background-color .12s,border-color .12s,color .12s}
+button:not(:disabled):hover,.tab:hover{filter:none;transform:none;box-shadow:none}
+button:active:not(:disabled){transform:none}
+#dhead button,#hud button,.sth button,.stn button,.rvb button,.stp button,#tsearch button,.react-flow .tbg button,.tab{background:var(--btn);color:var(--tx);border:1px solid var(--bd2)}
+#dhead button:hover,#hud button:hover,.sth button:hover,.stn button:not(:disabled):hover,.rvb button:hover,.stp button:hover,#tsearch button:not(:disabled):hover,.react-flow .tbg button:not(:disabled):hover,.tab:hover{background:var(--seg);border-color:var(--faint)}
+/* primary actions: accent tint, no gradient or glow */
+.go,.dbtn,.aib,#f button,#stT,#rvT,#jrT{background:var(--acc-bg)!important;color:var(--acc-tx);border:1px solid var(--acc-bd);font-weight:500;box-shadow:none;overflow:visible}
+.go:hover:not(:disabled),.dbtn:hover,.aib:hover,#f button:hover,#stT:hover,#rvT:hover,#jrT:hover{background:#6aa9ff33!important;border-color:var(--lnk);box-shadow:none;transform:none}
+.go::after,.dbtn::after,.aib::after,#f button::after{content:none}
+/* segmented controls (like the dashboard's .seg): a track with the chosen one raised */
+.rvb,.stp{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--track);border:1px solid var(--bd);border-radius:var(--r2);padding:3px}
+.rvb button,.stp button{border:0;background:transparent;color:var(--mut);border-radius:calc(var(--r2) - 3px);padding:4px 10px}
+.rvb button:hover,.stp button:hover{background:#1a1a19;border:0;color:var(--tx)}
+.rvb button.on,.stp button.on,.tab.on,.tabs .tab.on{background:var(--seg)!important;color:var(--tx);border:0;box-shadow:inset 0 1px 0 #ffffff0f,0 0 0 1px var(--bd2)}
+.rvb button.done::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--add);box-shadow:0 0 8px var(--add);margin-left:7px;vertical-align:1px}
+.stn button.on,#stT.on,#rvT.on,#jrT.on{background:var(--acc-bg)!important;color:var(--acc-tx);border-color:var(--acc-bd)}
+.ah button{background:none;border:1px solid transparent;color:var(--mut)}.ah button:hover{background:var(--track);border-color:var(--bd2);color:var(--tx)}
+.ah #stT,.ah #rvT,.ah #jrT{background:none!important;border-color:transparent;color:var(--mut)}.ah #stT:hover,.ah #rvT:hover,.ah #jrT:hover{background:var(--track)!important;border-color:var(--bd2);color:var(--tx)}
+.ah #stT.on,.ah #rvT.on,.ah #jrT.on{background:var(--acc-bg)!important;border-color:var(--acc-bd);color:var(--acc-tx)}
+input:focus,select:focus,textarea:focus,#f:focus-within{box-shadow:0 0 0 3px #6aa9ff26}
+input,select,textarea{background:#090909;border-color:var(--bd2);color:var(--tx)}
+
+/* ---- tinted chips and dots with a halo ---- */
+.pill,.st,.chip,.chip2,.tchip,.jc{letter-spacing:0}
+.pill,.st{border-radius:999px;background:var(--track);color:var(--mut)}
+.pill::before,.st.ok::before,.st.off::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px}
+.st.ok,.pill.ok,.pill.merged{background:var(--ok-bg);color:var(--add)}.st.off,.pill.closed{background:var(--warn-bg);color:var(--warn)}.pill.open{background:var(--ok-bg);color:var(--add)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:7px;background:var(--add);box-shadow:0 0 10px var(--add)}.dot.off{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+
+dialog[open]{animation:fade .15s ease both}
+dialog{background:var(--card);border:1px solid var(--bd2);border-radius:var(--r3);box-shadow:var(--float)}
+#dmenu,#hmenu{border-radius:var(--r2);box-shadow:var(--float);background:var(--pan);border:1px solid var(--bd2)}
+
+/* ---- surfaces ---- */
+aside{background:var(--pan)}
+h3{background:transparent;color:var(--faint);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--bd)}
+#tree div:hover{background:var(--track);box-shadow:none;border-radius:8px}
+#tree div.d:hover{box-shadow:none}
+#top_,#hud,.react-flow .tbg{background:var(--card)!important;backdrop-filter:none;box-shadow:var(--shadow);border:1px solid var(--bd)}
+#top_{border-radius:var(--r2)}
+.react-flow .tbg{border-radius:var(--r2);padding:3px}
+.react-flow .tbg button{border:0;background:transparent;color:var(--mut)}.react-flow .tbg button:not(:disabled):hover{background:var(--seg);color:var(--tx);border:0}
+.card{box-shadow:inset 0 1px 0 #ffffff09}
+.react-flow .card::before{content:none}
+.react-flow .card,.card{background:var(--card);border-radius:10px}
+.react-flow .fold{background:#0a0a0a;border-radius:14px}
+.react-flow .fold.mod:hover{border-color:var(--faint)}
+#chat .m{animation:none;box-shadow:none;border-radius:var(--r2)}
+#chat .u{background:var(--acc-bg);border:1px solid var(--acc-bd)}
+#chat .a{background:var(--track);border:1px solid var(--bd)}
+#f{box-shadow:none;background:var(--card);border-radius:var(--r2);border:1px solid var(--bd2)}
+.sum,.jcard{background:var(--card);box-shadow:var(--shadow);border:1px solid var(--bd);border-radius:var(--r3)}
+.sum h4,#ctx h4,.stb h4{color:var(--faint);letter-spacing:.08em}
+.cl,.rd{border-radius:0 var(--r) var(--r) 0}
+.rz{background:var(--bd);transition:background-color .12s}.rz:hover{background:var(--bd2)}
+.hk{box-shadow:none;border-radius:var(--r)}
+.stg{background:var(--track)}.stg i{background:var(--lnk);box-shadow:0 0 10px #6aa9ff80}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ⚙ Ajustes (settings.js): same dialog on every page; scoped to #conn so it doesn't clash with the map's .st/.tab */
+#top_ .setb{margin-left:auto;font-size:12px;padding:2px 10px;cursor:pointer}
+#conn{width:min(720px,94vw);height:min(640px,88vh);background:var(--pan);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:0;box-shadow:0 24px 60px #000a}#conn::backdrop{background:#000a;backdrop-filter:blur(2px)}
+#conn[open]{display:flex;flex-direction:column}#connBody{flex:1;overflow:auto}
+#conn button,#conn select,#conn input{font:inherit;color:var(--tx)}#conn select{background:#090909;border:1px solid var(--bd);border-radius:8px;padding:5px 8px}
+#conn .chead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--bd)}#stabs{margin-right:auto}
+#conn .tabs{display:flex;gap:2px;padding:3px;background:#090909;border:1px solid var(--bd);border-radius:9px}
+#conn .tab{background:#1c2330;border:1px solid var(--bd);border-radius:7px;padding:5px 12px;cursor:pointer}#conn .tabs .tab{border-color:transparent;background:transparent;color:var(--mut)}#conn .tabs .tab.on{background:#1f2e47;color:var(--lnk)}
+#conn .go{background:linear-gradient(#2c4c80,#16202e);border:0;border-radius:7px;padding:5px 14px;cursor:pointer;color:#fff}
+#conn .note{margin:12px;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:#0e0e0e;line-height:1.5}#conn .mut{color:var(--mut)}#conn .err{color:var(--del)}
+#conn .cn{padding:12px 16px;border-bottom:1px solid #121211}#conn .cn .top{display:flex;gap:8px;align-items:center}#conn .cn .top b{flex:1}#conn .cn .acts{display:flex;gap:6px;margin-top:8px;align-items:center}
+#conn .cn input{flex:1;min-width:0;background:#090909;border:1px solid var(--bd);border-radius:8px;padding:6px 10px}#conn .cn code{word-break:break-all}
+#conn .st{font-size:11px;padding:0 8px;float:none}
+
+/* side-panel handles: the global button hover/active rules reset `transform`, which made the centred handle jump on hover and click.
+   Keep the centring transform in every state and only fade the colours. */
+.rz>button,.rz>button:not(:disabled):hover,.rz>button:not(:disabled):active{transform:translate(-50%,-50%);filter:none;box-shadow:none}
+.rz>button{border:0;background:var(--bd2);color:var(--mut);opacity:.75;transition:background-color .15s,color .15s,opacity .15s}
+.rz>button:hover{background:var(--seg);color:var(--tx);opacity:1}
+/* AI usage tab: filters, ponytail-gain block-bar chart and table */
+#conn .ufil{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#conn .ufil select{background:var(--btn);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:5px 8px;max-width:200px}
+.ubars{font-family:var(--mono);font-size:12px;margin:10px 0 0;line-height:1.7}
+.ubars div{display:flex;gap:10px;white-space:pre}
+.ubars .k{width:150px;overflow:hidden;text-overflow:ellipsis;color:var(--mut)}
+.ubars .b{color:var(--chg);text-shadow:0 0 8px #f1a33c55}.ubars .t{color:var(--faint)}.ubars .v{color:var(--tx)}
+.utbl{overflow:auto;max-height:320px;margin-top:8px;border:1px solid var(--bd);border-radius:var(--r)}
+.utbl table{width:100%;border-collapse:collapse;font-size:12px}
+.utbl th{position:sticky;top:0;background:var(--pan);color:var(--mut);font-weight:500;text-align:left}
+.utbl th,.utbl td{padding:6px 10px;border-bottom:1px solid #121211;white-space:nowrap}
+.utbl .n{text-align:right;font-family:var(--mono)}.utbl .ell{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.utbl tbody tr:hover{background:var(--track)}
+@media (max-width:560px){.ubars .k{width:90px}}
+.uline{width:100%;height:140px;display:block;margin-top:10px}
+.uline .g{stroke:var(--bd);stroke-dasharray:2 4}.uline .a{fill:#f1a33c1a}
+.uline .l{fill:none;stroke:var(--chg);stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 4px #f1a33c66)}
+.uwrap{position:relative;user-select:none}.uline{height:190px;cursor:crosshair;touch-action:none}
+.uline .ax{fill:var(--faint);font-family:var(--mono);font-size:10px}
+.uline .cx{stroke:var(--bd2)}.uline .br{fill:#f1a33c22;stroke:var(--chg);stroke-dasharray:3 3}
+.utip{position:absolute;top:6px;background:var(--pan);border:1px solid var(--bd2);border-radius:var(--r);padding:6px 9px;font-size:11px;font-family:var(--mono);pointer-events:none;box-shadow:var(--float);white-space:nowrap}
+.utip span{float:right;margin-left:12px;color:var(--tx)}.utip i,.uleg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.uleg{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.uleg button{background:none;border:1px solid var(--bd);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--tx)}
+.uleg button.off{opacity:.4;text-decoration:line-through}
+.uline .pt{stroke:var(--pan);stroke-width:1.5}
+
+/* AI answers rendered from markdown */
+.mdx{line-height:1.55;font-size:13.5px}
+.mdx>*:first-child{margin-top:0}.mdx>*:last-child{margin-bottom:0}
+.mdx p{margin:0 0 .7em}
+.mdx h3,.mdx h4,.mdx h5,.mdx h6,.mdx h7,.mdx h8{margin:1.1em 0 .4em;line-height:1.3;font-weight:650;color:var(--fg,inherit)}
+.mdx h3{font-size:1.15em;padding-bottom:.3em;border-bottom:1px solid color-mix(in srgb,currentColor 15%,transparent)}
+.mdx h4{font-size:1.05em}.mdx h5,.mdx h6{font-size:.92em;text-transform:uppercase;letter-spacing:.04em;opacity:.75}
+.mdx ul,.mdx ol{margin:0 0 .7em;padding-left:1.3em}.mdx li{margin:.25em 0}.mdx li>.mdx p{margin:0}
+.mdx li::marker{color:#4f8cff}
+.mdx b{font-weight:650}
+.mdx code{font:12px ui-monospace,Consolas,monospace;padding:.1em .35em;border-radius:4px;background:color-mix(in srgb,currentColor 10%,transparent)}
+.mdx pre{margin:0 0 .8em;padding:10px 12px;border-radius:8px;overflow:auto;background:color-mix(in srgb,currentColor 7%,transparent)}
+.mdx pre code{padding:0;background:none}
+.mdx blockquote{margin:0 0 .8em;padding:.4em .8em;border-left:3px solid #4f8cff;border-radius:0 6px 6px 0;background:color-mix(in srgb,#4f8cff 8%,transparent)}
+.mdx hr{border:0;border-top:1px solid color-mix(in srgb,currentColor 15%,transparent);margin:1em 0}
+.mdx table{border-collapse:collapse;margin:0 0 .8em;font-size:.92em;display:block;overflow:auto}
+.mdx th,.mdx td{padding:4px 8px;border:1px solid color-mix(in srgb,currentColor 15%,transparent);text-align:left}
+.mdx th{background:color-mix(in srgb,currentColor 6%,transparent)}
+.mdx a{color:#4f8cff}
+#ctx .mdx :is(h3,h4){text-transform:none;letter-spacing:0;color:inherit;font-size:1.05em;margin:1.1em 0 .4em}#ctx .mdx>:first-child{margin-top:0}
+#ctx .mdx p{margin:0 0 .7em}

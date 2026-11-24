@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="prpeer/docs/logo-peer.gif" alt="PR Peer logo" width="72">
+  <img src="docs/logo-peer.gif" alt="PR Peer logo" width="72">
 </p>
 
 <h1 align="center">PR Peer</h1>
@@ -14,7 +14,7 @@
   Local-first · runs on <code>127.0.0.1</code> · Node 24 · GitHub, local git and Jira · Claude or any OpenAI-compatible model
 </p>
 
-![PR Peer walkthrough on a sample PR](prpeer/docs/demo-historia.gif)
+![PR Peer walkthrough on a sample PR](docs/demo-historia.gif)
 
 ## Contents
 
@@ -66,7 +66,7 @@ You do not need to install these first: the installer finds what is missing and 
 
 ### Steps
 
-1. **Download PR Peer** and unzip it (or copy the folder) anywhere you like. The folder holds `install.ps1`, `install.sh` and the `prpeer/` app.
+1. **Download PR Peer** and unzip it (or copy the folder) anywhere you like. The folder holds the app and the `install.ps1` / `install.sh` installers.
 2. **Run the installer** from that folder:
 
    **Windows (PowerShell):**
@@ -100,7 +100,7 @@ The installer asks before installing anything; add `-Yes` (Windows) or `-y` (mac
    | gh (optional) | winget `GitHub.cli` | Homebrew | the distro's package |
 
 2. **Fixes the Microsoft Store Python trap** on Windows: if a real Python is installed but the Store alias wins on `PATH`, it offers to put the real one first in your user `PATH`.
-3. Runs `npm ci` in `prpeer/` (installs dependencies and builds the map).
+3. Runs `npm ci` in the folder (installs dependencies and builds the map).
 4. Registers the global `prpeer` command, linked to the downloaded folder: do not move or delete that folder afterwards.
 5. Finishes with `prpeer doctor`, so you see what is ready and what is optional.
 
@@ -145,7 +145,7 @@ On Linux, if the global install fails for lack of permissions (a system Node own
 ### Without the installer
 
 ```bash
-cd prpeer
+cd prpeer            # the downloaded folder
 npm ci              # installs and builds the map ("prepare" script)
 npm link            # optional: global `prpeer` command
 ```
@@ -163,7 +163,7 @@ All optional; PR Peer works on local repos with none of them. Set them from the 
 ## Try it in a minute
 
 ```bash
-cd prpeer                 # inside the downloaded folder
+cd prpeer                # the downloaded folder
 npm run demo              # builds a sample repo with a PR and opens it in the browser
 ```
 
@@ -177,39 +177,39 @@ The sample PR adds partial refunds to a shop: 8 files, +220 −4. It is built to
 
 Eight files grouped by folder (`payments/`, `orders/`, `api/`, `notifications/`, `db/`). Tests are hidden so the map shows product code first. Every card shows its added and removed lines and how many functions it touches.
 
-![Overview of the sample PR](prpeer/docs/01-vista-general.jpg)
+![Overview of the sample PR](docs/01-vista-general.jpg)
 
 ### 2. The risk light
 
 `refunds.py` and `gateway.py` come out **risky**: other files use them, no test imports them, they mention «payment» and they sit on a sensitive path. The panel on the right lists the reasons, so the light is never a black box.
 
-![Risk light with reasons in the side panel](prpeer/docs/02-semaforo.jpg)
+![Risk light with reasons in the side panel](docs/02-semaforo.jpg)
 
 ### 3. What did not change
 
 With **show linked**, `revenue.py` and `dashboard.py` appear in blue: they are not in the diff but depend on what changes. The first does not subtract refunds and the second fails with the new state. Selecting a file draws its relations in white.
 
-![Linked files that are not in the diff](prpeer/docs/03-vinculados.jpg)
+![Linked files that are not in the diff](docs/03-vinculados.jpg)
 
-![Clip: turning linked files on and following relations](prpeer/docs/clip-linked.gif)
+![Clip: turning linked files on and following relations](docs/clip-linked.gif)
 
 ### 4. The code, without leaving the map
 
 Zoom is semantic: whatever is under the cursor opens as you zoom in. Zoomed in far enough, each card shows the added lines of its functions.
 
-![Cards showing the changed code when zoomed in](prpeer/docs/04-zoom-codigo.jpg)
+![Cards showing the changed code when zoomed in](docs/04-zoom-codigo.jpg)
 
-![Clip: semantic zoom from folders to code](prpeer/docs/clip-zoom.gif)
+![Clip: semantic zoom from folders to code](docs/clip-zoom.gif)
 
 ### 5. By module
 
 **Close all** and **Open one level**: `payments` gathers the risky files, `orders` and `db` call for attention. Useful to split a large PR between reviewers.
 
-![The map collapsed to module level](prpeer/docs/05-modulos.jpg)
+![The map collapsed to module level](docs/05-modulos.jpg)
 
-![Clip: opening and closing folder levels](prpeer/docs/clip-levels.gif)
+![Clip: opening and closing folder levels](docs/clip-levels.gif)
 
-The full script, with the planted flaws and how to re-record the screenshots, is in [demo/HISTORIA.md](prpeer/demo/HISTORIA.md).
+The full script, with the planted flaws and how to re-record the screenshots, is in [demo/HISTORIA.md](demo/HISTORIA.md).
 
 ## Usage
 
@@ -224,7 +224,7 @@ prpeer my-branch --links              # no server: summary in the terminal
 prpeer doctor                         # check the setup
 ```
 
-It opens in your browser by itself and greets you with the logo and a random quip; Ctrl-C stops it. Without the global command, use `node bin.mjs` inside the prpeer folder instead of `prpeer`.
+It opens in your browser by itself and greets you with the logo and a random quip; Ctrl-C stops it. Without the global command, use `node bin.mjs` inside the folder instead of `prpeer`.
 
 | Option | What it does |
 |---|---|
@@ -348,7 +348,7 @@ If you do not set a default provider, prpeer picks the first one that can answer
 
 ## Configuration
 
-`~/.prpeer/config.json` (or `--config`, `$PRPEER_CONFIG`, `./prpeer.config.json`) defines AI providers, the default model, the default interface language (`lang`), the language of AI replies (`language`), where to look for clones and the risk light rules. A full example is in [prpeer.config.example.json](prpeer/prpeer.config.example.json). `$PRPEER_HOME` moves the folder that holds saved connections.
+`~/.prpeer/config.json` (or `--config`, `$PRPEER_CONFIG`, `./prpeer.config.json`) defines AI providers, the default model, the default interface language (`lang`), the language of AI replies (`language`), where to look for clones and the risk light rules. A full example is in [prpeer.config.example.json](prpeer.config.example.json). `$PRPEER_HOME` moves the folder that holds saved connections.
 
 Each repo can tune the risk light with a `.prpeer.json` at its root:
 
@@ -363,7 +363,7 @@ Each repo can tune the risk light with a `.prpeer.json` at its root:
 }
 ```
 
-It is read from the **base branch**, not the PR's: a PR cannot loosen its own rules. Layers, from lowest to highest priority: defaults, user configuration, `.prpeer.json`. You can also tune `riskWeight`, `churnPer`, `churnMax`, `fanInWeight`, `fanInMax` and `noTestWeight` (see [mood.ts](prpeer/mood.ts)).
+It is read from the **base branch**, not the PR's: a PR cannot loosen its own rules. Layers, from lowest to highest priority: defaults, user configuration, `.prpeer.json`. You can also tune `riskWeight`, `churnPer`, `churnMax`, `fanInWeight`, `fanInMax` and `noTestWeight` (see [mood.ts](mood.ts)).
 
 ## Languages
 
@@ -454,6 +454,6 @@ LANG_UI=en python demo/mkstory.py /tmp/shots docs        # story GIF + jpg scree
 python demo/mkclips.py /tmp/clips docs                   # clip-*.gif
 ```
 
-The scripts drive a headless Chrome; the path is set at the top of `shoot.mjs` and `clips.mjs`. More detail in [demo/HISTORIA.md](prpeer/demo/HISTORIA.md).
+The scripts drive a headless Chrome; the path is set at the top of `shoot.mjs` and `clips.mjs`. More detail in [demo/HISTORIA.md](demo/HISTORIA.md).
 
-What changed is in [CHANGELOG.md](prpeer/CHANGELOG.md); there is a list of ideas in [TODO.md](prpeer/TODO.md).
+What changed is in [CHANGELOG.md](CHANGELOG.md); there is a list of ideas in [TODO.md](TODO.md).
