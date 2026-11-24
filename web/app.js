@@ -276,9 +276,7 @@ async function askAI(body,onText){
 const hasErr=t=>/(^|\n)\[error\]/.test(t);
 // if the provider is disconnected, the error carries a button straight to Connections
 // AI answers: first paragraph visible, the rest collapsed
-const mda=x=>{x=String(x??'');const i=x.search(/
-s*
-/);return i<0?md(x):md(x.slice(0,i))+`<details><summary>${$t('ai.more')}</summary>${md(x.slice(i))}</details>`};
+const mda=x=>{x=String(x??'');const i=x.search(/\n\s*\n/);return i<0?md(x):md(x.slice(0,i))+`<details><summary>${$t('ai.more')}</summary>${md(x.slice(i))}</details>`};
 const mdc=x=>mda(x)+(hasErr(x)&&/desconectado|disconnected/.test(x)?`<p><a class="aib" style="display:inline-block;text-decoration:none" href="/home#conexiones">${$t('conn.goto')}</a></p>`:'');
 // chat
 const hist=[];
