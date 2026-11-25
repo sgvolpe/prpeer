@@ -596,11 +596,27 @@ addEventListener('keydown',e=>{if(!STon||!ST||ST.busy||ST.err||/INPUT|TEXTAREA|S
 // on-demand reviews (can be heavy: each runs when its button is pressed and is remembered). The security one shows the local scanner first, without AI.
 const RV_TOOLS=['coherence','comments','security','tests','breaking'].map(id=>[id,$t('rv.'+id),$t('rv.'+id+'.tip')]);
 let RVon=false,RVa=null;const RVr={};
-const findHtml=fs=>fs.length?fs.map(x=>`<div class="fd ${x.level=='secret'?'s':'g'}"><b>${E($t('scan.level.'+x.level))}</b> · ${key[x.path]?nm(key[x.path]):E(x.path)}${x.line?':'+x.line:''} — ${E(x.rule)}<br><code>${E(x.sample)}</code></div>`).join(''):`<p class="doc">${$t('scan.none')}</p>`;
+const findHtml=fs=>fs.length?fs.map((x,i)=>`<div class="fd ${x.level=='secret'?'s':'g'}"><b>${E($t('scan.level.'+x.level))}</b> · ${key[x.path]?nm(key[x.path]):E(x.path)}${x.line?':'+x.line:''} — ${E(x.rule)}${PRD.canComment&&x.line?` <a class="use" title="${EA($t('rv.cmtFind'))}" onclick="rvCompose('line',${i})">💬</a>`:''}<br><code>${E(x.sample)}</code></div>`).join(''):`<p class="doc">${$t('scan.none')}</p>`;
+// security review → GitHub: a scanner finding as a comment on its line, or the whole review as a comment on the PR.
+// Prefilled and editable; posted only when the user sends it and confirms (the scanner already masks secrets).
+function rvCompose(kind,i){const r=RVr[RVa],x=kind=='line'?r?.finds?.[i]:null;if(!r)return;
+  r.cmt=x?{kind,path:x.path,line:x.line,text:`**${$t('scan.level.'+x.level)}** · ${x.rule}\n\`${x.sample}\`\n\n`}:{kind:'review',text:r.txt.trim()};
+  rvDraw();const t=document.getElementById('rvcx');t?.focus();t?.setSelectionRange(t.value.length,t.value.length)}
+const rvCmtHtml=c=>!c?'':`<div class="rvc"><h4>${c.kind=='line'?$t('cmt.title')+' · '+E(c.path)+':'+c.line:$t('rv.cmtTitle')}</h4><textarea id="rvcx" rows="${c.kind=='line'?4:10}" maxlength="20000" oninput="RVr[RVa].cmt.text=this.value"${c.done?' disabled':''}>${E(c.text)}</textarea>`
+  +`<p class="doc">${$t('cmt.note')}${c.kind=='line'?'':' '+$t('rv.cmtWarn')}</p>`
+  +(c.done?'':`<button class="aib" onclick="rvSendCmt()"${c.busy?' disabled':''}>${$t('cmt.send')}</button> <button class="aib" onclick="RVr[RVa].cmt=null;rvDraw()">${$t('common.close')}</button>`)+` <span>${c.out||''}</span></div>`;
+async function rvSendCmt(){const c=RVr[RVa]?.cmt,text=c?.text.trim();if(!text)return;
+  if(!confirm(c.kind=='line'?$t('cmt.confirm',{where:c.path+':'+c.line,pr:META?.id?'#'+META.id:''}):$t('rv.cmtConfirm',{pr:META?.id?'#'+META.id:''})))return;
+  c.busy=true;c.out='…';rvDraw();
+  try{const r=await fetch((c.kind=='line'?'/api/comment':'/api/review')+'?s='+PRD.sid,{method:'POST',headers:{'content-type':'application/json','x-prpeer':'1'},body:JSON.stringify(c.kind=='line'?{path:c.path,line:c.line,side:'RIGHT',text}:{event:'COMMENT',text,comments:[]})}),j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
+    c.done=true;c.out=$t('cmt.sent')+(/^https:\/\//.test(j.url||'')?` <a href="${EA(j.url)}" target="_blank" rel="noopener noreferrer">${$t('cmt.view')}</a>`:'')}
+  catch(e){c.out='<span class="err">'+E(e.message)+'</span>'}
+  c.busy=false;rvDraw()}
 function rvDraw(){rev.hidden=!RVon;thread.classList.toggle('rv',RVon);rvT.classList.toggle('on',RVon);if(!RVon)return;
   const r=RVa&&RVr[RVa];
   rev.innerHTML=`<div class="sth"><b>${$t('rv.title')}</b><button onclick="rvClose()" title="${$t('common.close')}">✕</button></div><div class="rvb">${RV_TOOLS.map(([id,l,t])=>`<button class="${id==RVa?'on':''}${RVr[id]&&!RVr[id].busy&&!RVr[id].failed?' done':''}" title="${EA(t)}" onclick="rvRun('${id}')">${l}</button>`).join('')}</div>`
-   +`<div id="rvout">${r?(r.pre||'')+(r.busy&&!r.txt?`<p class="doc">${$t('rv.analyzing')}</p>`:mdc(r.txt||''))+(r.busy?'':`<p><button class="aib" onclick="rvRun('${RVa}',true)">${$t(r.failed?'common.retry':'rv.rerun')}</button></p>`):`<p class="doc">${$t('rv.pick')}</p>`}</div>`}
+   +`<div id="rvout">${r?(r.pre||'')+(r.busy&&!r.txt?`<p class="doc">${$t('rv.analyzing')}</p>`:mdc(r.txt||''))+(r.busy?'':`<p><button class="aib" onclick="rvRun('${RVa}',true)">${$t(r.failed?'common.retry':'rv.rerun')}</button>${RVa=='security'&&PRD.canComment&&!r.failed&&r.txt?` <button class="aib" onclick="rvCompose('review')">${$t('rv.cmtBtn')}</button>`:''}</p>`)+rvCmtHtml(r.cmt):`<p class="doc">${$t('rv.pick')}</p>`}</div>`}
 function rvClose(){RVon=false;rvDraw()}
 function rvOpen(){if(RVon){rvClose();return}if(STon)stClose();if(JRon)jrClose();if(NTon)ntClose();RVon=true;rvDraw()}
 async function rvRun(id,force){
@@ -614,7 +630,7 @@ async function rvRun(id,force){
       if(bad&&bad.length)r.pre=`<div class="fd g">${bad.map(x=>E(x.key)+(x.error?' — '+E(x.error):'')).join('<br>')}<br>${$t(j.configured?'rv.ticketUnreadable':'rv.jiraOff')} <a href="/home#conexiones">${$t('conn.title')}</a></div>`;
       else if(j&&!(j.jira||[]).length)r.pre=`<div class="fd g">${$t('rv.noKey')}</div>`;
       upd()}
-    if(id=='security'){const f=await fetch('/api/scan?s='+PRD.sid).then(x=>x.ok?x.json():[]);r.pre=`<h4>${$t('rv.localScan')}</h4>`+findHtml(f)+`<h4>${$t('rv.aiAnalysis')}</h4>`;upd()}
+    if(id=='security'){const f=await fetch('/api/scan?s='+PRD.sid).then(x=>x.ok?x.json():[]);r.finds=f;r.pre=`<h4>${$t('rv.localScan')}</h4>`+findHtml(f)+`<h4>${$t('rv.aiAnalysis')}</h4>`;upd()}
     r.txt=await askAI({task:'review',tool:id},x=>{r.txt=x;upd()});
     r.failed=hasErr(r.txt)
   }catch(e){r.txt='[error] '+e.message;r.failed=true}

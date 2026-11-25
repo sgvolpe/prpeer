@@ -228,3 +228,6 @@ mark{background:#f0a03055;color:inherit;border-radius:2px}
 .ntsend label{font-size:12px;margin-right:8px;cursor:pointer}
 #top_ .tst>span[hidden]{display:none}
 .codeq h4{text-transform:none;letter-spacing:0}
+/* security review → comment on the PR */
+.rvc{margin-top:8px;padding-top:6px;border-top:1px solid var(--bd)}
+.rvc textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px;font:12px ui-monospace,monospace;color:var(--tx);background:var(--inp);border:1px solid var(--bd);border-radius:6px;resize:vertical}
