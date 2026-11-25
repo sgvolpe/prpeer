@@ -3,7 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { analyze } from './analyze.ts';
+import { analyze, EMPTY_TREE } from './analyze.ts';
+import { parseDiff } from './diff.ts';
+import { isTest } from './graph.ts';
 import { ask, type AskBody, type Payload } from './ask.ts';
 import { scanPayload } from './scan.ts';
 import { entry, okSecret, setEntry } from './connections.ts';
@@ -156,6 +158,17 @@ export function createApp(cfg: Config, extraDirs: string[] = []) {
   // open and clone touch git: one at a time
   let chain: Promise<unknown> = Promise.resolve();
   const exclusive = <T>(f: () => Promise<T>) => { const p = chain.then(f, f); chain = p.catch(() => {}); return p; };
+  // Writes on the host (a comment, a review) only for a PR of a source that supports them, and only on the PR's changed lines,
+  // because the host only accepts comments there.
+  type Note = { path: string; line: number; side: 'LEFT' | 'RIGHT'; text: string };
+  const writable = (sid: string, what: 'comment' | 'review') => {
+    const s = session(sid), m = s.meta, src = m?.kind === 'pr' && okRepo(m.repo) ? pick(m.source) : undefined;
+    if (!m || !src?.[what]) throw coded(t('err.noComment'), 'bad_request');
+    return { m, src, p: s.payload as unknown as Payload & { head: string } };
+  };
+  const okNote = (p: Payload, c: Partial<Note>) => typeof c?.text === 'string' && !!c.text.trim() && c.text.length <= 20_000
+    && !!p.files.find(f => f.path === c.path)?.sections.some(x => x.lines.some(l => c.side === 'LEFT' ? l.k === '-' && l.o === c.line : c.side === 'RIGHT' && l.k === '+' && l.n === c.line));
+  const gitAt = (dir: string, ...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8', maxBuffer: 1 << 27, timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] });
   const openNow = async (b: unknown, reuse?: string) => {
     const { source, repo, kind, id } = (b ?? {}) as { source: string; repo: string; kind: 'pr' | 'commit'; id: string };
     if ((kind !== 'pr' && kind !== 'commit') || typeof id !== 'string' || !REF.test(id) || !okRepo(repo)) throw coded(t('err.badRequest'), 'bad_request');
@@ -169,17 +182,25 @@ export function createApp(cfg: Config, extraDirs: string[] = []) {
 
   const api: Api = {
     initial: () => initial,
-    page: sid => { const s = sessions.get(sid); return s && { ...(s.slim as object), sid, canComment: s.meta?.kind === 'pr' && !!sources.find(x => x.id === s.meta!.source)?.comment }; },
+    // key: the same PR across pushes and restarts (the browser keeps the review marks under it)
+    page: sid => { const s = sessions.get(sid); return s && { ...(s.slim as object), sid, key: prKey(s), canComment: s.meta?.kind === 'pr' && !!sources.find(x => x.id === s.meta!.source)?.comment }; },
     // A comment on one line of the PR, written and sent by the user (the UI asks for confirmation). The only write prpeer
     // does on the host: the AI never calls it. The line must be one of the PR's changed lines, as the host requires.
     comment: async (sid, body) => {
-      const s = session(sid), m = s.meta, src = m?.kind === 'pr' && okRepo(m.repo) ? pick(m.source) : undefined;
-      if (!m || !src?.comment) throw coded(t('err.noComment'), 'bad_request');
-      const { path, line, side, text } = (body ?? {}) as { path?: unknown; line?: unknown; side?: unknown; text?: unknown };
-      const p = s.payload as unknown as Payload & { head: string };
-      const okLine = p.files.find(f => f.path === path)?.sections.some(x => x.lines.some(l => side === 'LEFT' ? l.k === '-' && l.o === line : side === 'RIGHT' && l.k === '+' && l.n === line));
-      if (typeof text !== 'string' || !text.trim() || text.length > 20_000 || !okLine) throw coded(t('err.badRequest'), 'bad_request');
-      return src.comment(m.repo, m.id, { path: path as string, line: line as number, side: side as 'LEFT' | 'RIGHT', body: text, commit: p.head });
+      const { m, src, p } = writable(sid, 'comment');
+      const c = (body ?? {}) as Partial<Note>;
+      if (!okNote(p, c)) throw coded(t('err.badRequest'), 'bad_request');
+      return src.comment!(m.repo, m.id, { path: c.path!, line: c.line!, side: c.side!, body: c.text!, commit: p.head });
+    },
+    // The user's notes as one review with a verdict (comment, approve, request changes): same checks as a single comment.
+    review: async (sid, body) => {
+      const { m, src, p } = writable(sid, 'review');
+      const { event, text = '', comments } = (body ?? {}) as { event?: unknown; text?: unknown; comments?: unknown };
+      const ok = (event === 'COMMENT' || event === 'APPROVE' || event === 'REQUEST_CHANGES') && typeof text === 'string' && text.length <= 20_000
+        && Array.isArray(comments) && comments.length <= 100 && comments.every(c => okNote(p, c as Partial<Note>))
+        && (event === 'APPROVE' || !!text.trim() || comments.length > 0); // GitHub rejects an empty comment or change request
+      if (!ok) throw coded(t('err.badRequest'), 'bad_request');
+      return src.review!(m.repo, m.id, { commit: p.head, body: text, event, comments: (comments as Note[]).map(c => ({ path: c.path, line: c.line, side: c.side, body: c.text })) });
     },
     info: () => llmInfo(cfg),
     connect: async body => {
@@ -206,6 +227,60 @@ export function createApp(cfg: Config, extraDirs: string[] = []) {
     },
     disconnect: async body => { setEntry(connId((body as { target?: unknown })?.target), { off: true }); forgetTokenCache(); return { ok: true }; }, // also deletes what was saved
     file: (sid, path) => fileLines(session(sid).payload as never, path),
+    // Text search in the PR's changed lines (case-insensitive): how many lines per file and the first 300 hits.
+    grep: (sid, q) => {
+      if (typeof q !== 'string' || q.trim().length < 2 || q.length > 100) throw coded(t('err.badRequest'), 'bad_request');
+      const needle = q.trim().toLowerCase(), hits: { path: string; line?: number; k: string; text: string }[] = [], files: Record<string, number> = {};
+      for (const f of (session(sid).payload as unknown as Payload).files)
+        for (const s of f.sections) for (const l of s.lines) {
+          if (!l.t.toLowerCase().includes(needle)) continue;
+          files[f.path] = (files[f.path] ?? 0) + 1;
+          if (hits.length < 300) hits.push({ path: f.path, line: l.n ?? l.o, k: l.k, text: l.t.trim().slice(0, 200) });
+        }
+      return { hits, files };
+    },
+    // Which files changed between a head the user reviewed earlier and this one; known: false when that head is gone.
+    since: (sid, from) => {
+      if (!/^[0-9a-f]{7,40}$/.test(from)) throw coded(t('err.badRequest'), 'bad_request');
+      const p = session(sid).payload as unknown as { worktree: string; head: string };
+      try { gitAt(p.worktree, 'cat-file', '-e', `${from}^{commit}`); } catch { return { known: false, files: [] }; }
+      return { known: true, files: gitAt(p.worktree, '-c', 'core.quotepath=off', 'diff', '--name-only', '-M', from, p.head).split(/\r?\n/).filter(Boolean) };
+    },
+    // Where a name appears in the PR's head (git grep, whole word): who calls a function or uses a class, changed or not.
+    uses: (sid, name) => {
+      if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]{0,99}$/.test(name)) throw coded(t('err.badRequest'), 'bad_request');
+      const p = session(sid).payload as unknown as { worktree: string; files: { path: string }[]; linked: { path: string }[] };
+      let out = '';
+      try { out = execFileSync('git', ['-c', 'core.quotepath=off', 'grep', '-n', '-I', '-w', '-F', '-e', name, '--', '.'], { cwd: p.worktree, encoding: 'utf8', maxBuffer: 1 << 26, timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+      catch (e) { if ((e as { status?: number }).status !== 1) throw e; } // 1 = no match
+      const changed = new Set(p.files.map(f => f.path)), linked = new Set(p.linked.map(l => l.path));
+      const def = new RegExp(`\\b(def|class|function|func|fn|interface|type|struct|enum)\\s+${name.replace(/\$/g, '\\$')}\\b`);
+      const lines = out.split(/\r?\n/).filter(Boolean); // the worktree may have CRLF endings (Windows)
+      const hits = lines.slice(0, 300).flatMap(l => {
+        const m = /^(.*?):(\d+):(.*)$/s.exec(l);
+        return m ? [{ path: m[1], line: +m[2], text: m[3].trim().slice(0, 200), def: def.test(m[3]), test: isTest(m[1]), on: changed.has(m[1]) ? 'c' : linked.has(m[1]) ? 'l' : '' }] : [];
+      });
+      return { hits, more: Math.max(0, lines.length - hits.length) };
+    },
+    // A file's diff with context lines, for the diff dialog: 3 lines, whole functions (git -W) or the whole file.
+    // since: an earlier head of the PR, to see only what changed after the user's last review.
+    diff: (sid, path, ctx, since) => {
+      const p = session(sid).payload as unknown as { worktree: string; head: string; base: { sha: string }; files: { path: string; oldPath?: string }[] };
+      const f = p.files.find(x => x.path === path);
+      if (!f || (since && !/^[0-9a-f]{7,40}$/.test(since))) throw coded(t('err.badRequest'), 'bad_request');
+      const g = (...a: string[]) => gitAt(p.worktree, ...a);
+      if (since) { try { g('cat-file', '-e', `${since}^{commit}`); } catch { throw coded(t('err.unknownSince'), 'unknown_since', 409); } }
+      const range = since ? [since, p.head] : [p.base.sha === EMPTY_TREE ? `${EMPTY_TREE}..${p.head}` : `${p.base.sha}...${p.head}`];
+      const out = g('-c', 'core.quotepath=off', 'diff', '--no-color', '-M', ctx === 'fn' ? '-W' : ctx === 'all' ? '-U100000' : '-U3', ...range, '--', ...new Set([f.oldPath ?? f.path, f.path]));
+      let left = 20_000; // lines sent at most: a whole generated file would freeze the dialog
+      const hunks = (parseDiff(out)[0]?.hunks ?? []).map(h => {
+        let o = h.oldStart, n = h.newStart;
+        const lines = h.lines.slice(0, Math.max(0, left)).map(l => l.k === '+' ? { k: l.k, t: l.t, n: n++ } : l.k === '-' ? { k: l.k, t: l.t, o: o++ } : { k: l.k, t: l.t, o: o++, n: n++ });
+        left -= h.lines.length;
+        return { oldStart: h.oldStart, newStart: h.newStart, header: h.header, lines };
+      });
+      return { hunks: hunks.filter(h => h.lines.length), cut: left < 0 };
+    },
     meta: async sid => {
       const m = session(sid).meta;
       if (!m || !okRepo(m.repo)) return null;

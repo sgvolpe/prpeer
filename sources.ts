@@ -24,6 +24,7 @@ export type Discussion = { body?: string; branch?: string; items: { kind: 'comme
 export type PrMeta = { id?: string; url?: string; author?: string; created?: string; closed?: string; approvals?: number; changesRequested?: number; unresolved?: number; state: string; draft?: boolean; comments: number; conflicts?: boolean; checks: { name: string; state: 'ok' | 'fail' | 'wip' | 'skip' }[];
   annotations?: { check: string; path: string; line: number; end: number; level: string; message: string }[] }; // where the failed checks point (file and lines)
 export type LineComment = { path: string; line: number; side: 'LEFT' | 'RIGHT'; body: string; commit: string };
+export type Review = { commit: string; body: string; event: 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES'; comments: Omit<LineComment, 'commit'>[] };
 
 // Inline comments that start with an intent id (`#i-retry — ...`, see GUIA-PR-PEER.md), grouped by intent.
 export function intents(d: Discussion | null): Map<string, { where: string; text: string }[]> {
@@ -42,7 +43,8 @@ export interface Source {
   meta?(repo: string, id: string): Promise<PrMeta>;
   prForCommit?(repo: string, sha: string): Promise<string | undefined>; // the PR that contains the commit, so a commit session also gets the strip
   discussion?(repo: string, id: string): Promise<Discussion>;
-  comment?(repo: string, id: string, c: LineComment): Promise<{ url?: string }>; // the only write: called only when the user sends a comment from the UI
+  comment?(repo: string, id: string, c: LineComment): Promise<{ url?: string }>; // writes: called only when the user sends a comment from the UI
+  review?(repo: string, id: string, r: Review): Promise<{ url?: string }>; // the user's notes as one review with a verdict, sent from the UI
   readonly label: string; // may be a getter: it is localized per request
   status(): Promise<{ ready: boolean; hint?: string }>;
   repos(): Promise<RepoRef[]>;
@@ -189,7 +191,7 @@ const ghPR = (p: GhPR) => ({ id: String(p.number), title: p.title, author: p.use
 
 export function githubSource(cfg: SourcesCfg['github'] = {}): Source {
   const api = (cfg.apiUrl ?? 'https://api.github.com').replace(/\/$/, '');
-  // post: sends it as a JSON POST (only `comment` does, after the user confirmed it)
+  // post: sends it as a JSON POST (only `comment` and `review` do, after the user confirmed them)
   const get = async <T>(path: string, post?: unknown): Promise<T> => {
     const token = githubToken(cfg.tokenEnv);
     if (!token) throw new Error(t('src.ghNoCreds'));
@@ -220,6 +222,10 @@ export function githubSource(cfg: SourcesCfg['github'] = {}): Source {
     },
     comment: async (repo, id, c) => {
       const r = await get<{ html_url?: string }>(`/repos/${repo}/pulls/${id}/comments`, { body: c.body, commit_id: c.commit, path: c.path, line: c.line, side: c.side });
+      return { url: r.html_url };
+    },
+    review: async (repo, id, rv) => {
+      const r = await get<{ html_url?: string }>(`/repos/${repo}/pulls/${id}/reviews`, { commit_id: rv.commit, body: rv.body, event: rv.event, comments: rv.comments });
       return { url: r.html_url };
     },
     prForCommit: async (repo, sha) => { const r = await get<{ number: number }[]>(`/repos/${repo}/commits/${sha}/pulls`).catch(() => []); return r[0] ? String(r[0].number) : undefined; },

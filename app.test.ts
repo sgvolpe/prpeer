@@ -62,6 +62,26 @@ test('local: discovered repos, branches, commits, opening PR/commit/root commit,
   const lines = api.file(sid, 'a.txt') as { k: string; t: string }[][];
   assert.deepEqual(lines.flat().map(l => l.k + l.t), ['-l2', '+L2']);
   assert.equal(api.file(sid, '../a.txt'), null);
+  // the diff with context: unchanged lines around the change, with both numbers; only files of the PR
+  const dd = api.diff!(sid, 'a.txt', '3') as { hunks: { lines: { k: string; t: string; o?: number; n?: number }[] }[] };
+  assert.deepEqual(dd.hunks[0].lines.map(l => `${l.k}${l.t}:${l.o ?? ''}/${l.n ?? ''}`), [' l1:1/1', '-l2:2/', '+L2:/2', ' l3:3/3']);
+  assert.throws(() => api.diff!(sid, '../etc/passwd', '3'), /pedido inválido/);
+  assert.throws(() => api.diff!(sid, 'a.txt', '3', '--output=x'), /pedido inválido/);
+  // who uses a name: whole-word matches in the head, marked changed; only identifiers reach git
+  assert.deepEqual((api.uses!(sid, 'nuevo') as { hits: unknown[] }).hits, [{ path: 'b.txt', line: 1, text: 'nuevo', def: false, test: false, on: 'c' }]);
+  assert.deepEqual((api.uses!(sid, 'nadie') as { hits: unknown[] }).hits, []);
+  for (const bad of ['--all', 'a b', '', 'x;rm']) assert.throws(() => api.uses!(sid, bad), /pedido inválido/, bad);
+  // since an earlier head: which files changed; an unknown head says so; the diff since it only has the new changes
+  assert.deepEqual(api.since!(sid, baseSha), { known: true, files: ['a.txt', 'b.txt'] });
+  assert.deepEqual(api.since!(sid, featSha), { known: true, files: [] });
+  assert.deepEqual(api.since!(sid, 'deadbeefdeadbeef'), { known: false, files: [] });
+  assert.throws(() => api.since!(sid, 'HEAD~1'), /pedido inválido/);
+  assert.deepEqual((api.diff!(sid, 'a.txt', '3', featSha) as { hunks: unknown[] }).hunks, []);
+  assert.equal((api.page(sid) as { key: string }).key, 'test/demo#feat');
+  // search in the changed lines, case-insensitive, with the line number of its side
+  assert.deepEqual(api.grep!(sid, 'l2'), { hits: [{ path: 'a.txt', line: 2, k: '-', text: 'l2' }, { path: 'a.txt', line: 2, k: '+', text: 'L2' }], files: { 'a.txt': 2 } });
+  assert.deepEqual(api.grep!(sid, 'zzz'), { hits: [], files: {} });
+  assert.throws(() => api.grep!(sid, 'a'), /pedido inválido/);
   assert.throws(() => api.file('nope', 'a.txt'), /sesión desconocida/);
 
   const c = (await api.open({ source: 'local', repo: 'test/demo', kind: 'commit', id: featSha })) as { sid: string };
@@ -111,11 +131,12 @@ test('github (simulated API + clone from a local "remote" repo): list, filter, c
   g(bare, 'update-ref', 'refs/pull/2/head', work.featSha);
 
   const pr = (n: number, state: string, merged: string | null) => ({ number: n, title: `PR ${n}`, user: { login: 'u' }, state, merged_at: merged, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', base: { ref: 'main' }, head: { ref: 'feat' } });
-  const posted: unknown[] = [];
+  const posted: unknown[] = [], reviews: unknown[] = [];
   const api = createServer((req, res) => {
     const u = new URL(req.url!, 'http://x'), p = u.pathname;
     const out = (o: unknown, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.headers.authorization !== 'Bearer test-token') return out({ message: 'Bad credentials' }, 401);
+    if (req.method === 'POST' && p === '/repos/o/demo/pulls/1/reviews') { let s = ''; req.on('data', c => (s += c)); req.on('end', () => { reviews.push(JSON.parse(s)); out({ html_url: 'https://github.com/o/demo/pull/1#pullrequestreview-1' }); }); return; }
     if (req.method === 'POST' && p === '/repos/o/demo/pulls/1/comments') { let s = ''; req.on('data', c => (s += c)); req.on('end', () => { posted.push(JSON.parse(s)); out({ html_url: 'https://github.com/o/demo/pull/1#discussion_r1' }, 201); }); return; }
     if (p === `/repos/o/demo/commits/${work.featSha}/check-runs`) return out({ check_runs: [{ id: 7, name: 'lint', status: 'completed', conclusion: 'failure', output: { annotations_count: 1 } }, { id: 8, name: 'build', status: 'completed', conclusion: 'success', output: { annotations_count: 3 } }] });
     if (p === '/repos/o/demo/check-runs/7/annotations') return out([{ path: 'a.txt', start_line: 2, end_line: 2, annotation_level: 'failure', message: 'bad line', title: 'E1' }]);
@@ -177,6 +198,16 @@ test('github (simulated API + clone from a local "remote" repo): list, filter, c
   const c = (await open('commit', work.featSha)) as unknown as { sid: string; canComment: boolean };
   assert.equal(c.canComment, false);
   await assert.rejects(a.comment!(c.sid, { path: 'a.txt', line: 2, side: 'RIGHT', text: 'x' }), /solo se puede comentar/);
+  // a review: the notes as line comments plus a verdict, all checked like a single comment
+  const rv = { event: 'REQUEST_CHANGES', text: 'Two things', comments: [{ path: 'a.txt', line: 2, side: 'RIGHT', text: 'why?' }, { path: 'a.txt', line: 2, side: 'LEFT', text: 'was fine' }] };
+  const done = { url: 'https://github.com/o/demo/pull/1#pullrequestreview-1' };
+  assert.deepEqual(await a.review!(s1.sid, rv), done);
+  assert.deepEqual(reviews, [{ commit_id: work.featSha, body: 'Two things', event: 'REQUEST_CHANGES', comments: [{ path: 'a.txt', line: 2, side: 'RIGHT', body: 'why?' }, { path: 'a.txt', line: 2, side: 'LEFT', body: 'was fine' }] }]);
+  for (const bad of [{ ...rv, event: 'MERGE' }, { ...rv, comments: [{ path: 'a.txt', line: 1, side: 'RIGHT', text: 'x' }] }, { event: 'COMMENT', text: ' ', comments: [] }, { ...rv, comments: 'x' }])
+    await assert.rejects(a.review!(s1.sid, bad), /pedido inválido/, JSON.stringify(bad));
+  assert.equal(reviews.length, 1);
+  assert.deepEqual(await a.review!(s1.sid, { event: 'APPROVE', comments: [] }), done); // approving needs nothing else
+  await assert.rejects(a.review!(c.sid, rv), /solo se puede comentar/);
   // meta: the failed check's annotations point at file and line; the passing one's are not fetched
   assert.deepEqual(((await a.meta(s1.sid)) as { annotations: unknown[] }).annotations, [{ check: 'lint', path: 'a.txt', line: 2, end: 2, level: 'failure', message: 'E1: bad line' }]);
 

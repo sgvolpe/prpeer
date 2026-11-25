@@ -22,6 +22,8 @@ export type MapApi = {
   pinned(): ReadonlySet<string>; // cards pinned open from the right-click menu
   reviewed?(fileKey: string): boolean; // marked as reviewed by the user
   ci?(fileKey: string): string[] | null; // what the failed CI checks say about this file
+  ext?(fileKey: string): string[] | null; // what in this file changes for whoever uses the code (signatures, endpoints…)
+  stale?(fileKey: string): boolean; // reviewed at an earlier push and changed since
   openDiff(key: string): void;
   onView(view: { key: string; w: number }[]): void; // cards on screen and the focus each has (0..1): the AI explains with them as context
   code(key: string): Promise<string[]>; // the file's changed code ("+ text", "- text"), to show more as the zoom gets closer
@@ -56,7 +58,7 @@ const FileNode = memo(function FileNode({ data }: NodeProps) {
   const api = useContext(Api)!;
   const { file: f, open, sel, mood, h, lines, code, focus } = data as unknown as FileData;
   const shown = lines > 0 ? (code ?? previewLines(f.preview)).slice(0, lines) : open ? previewLines(f.preview) : [];
-  const t = f.add + f.del, many = f.secs.length > 1, seen = api.reviewed?.(f.key), ci = api.ci?.(f.key);
+  const t = f.add + f.del, many = f.secs.length > 1, seen = api.reviewed?.(f.key), ci = api.ci?.(f.key), ext = api.ext?.(f.key);
   const cls = ['card', f.status, 't3', `fx${focus}`, t > 200 && 'big', sel && 'sel', open && 'open', seen && 'seen', ci && 'cifail', 'nodrag', 'nopan'].filter(Boolean).join(' ');
   return (
     <div className={cls} style={{ height: h }} draggable
@@ -68,7 +70,9 @@ const FileNode = memo(function FileNode({ data }: NodeProps) {
         {mood && <i className={`md m${mood.l}`} title={`${LBL[mood.l]}: ${mood.why.join(', ')}`} />}
         <span className="nm" title={f.key}>{baseName(f.key)}</span>
         {ci && <span className="ci" title={ci.join('\n')}>✗ CI</span>}
+        {ext && <span className="ext" title={`${$t('surf.tip')}\n${ext.join('\n')}`}>⇄</span>}
         {seen && <span className="ok" title={$t('seen.tip')}>✓</span>}
+        {api.stale?.(f.key) && <span className="stl" title={$t('stale.badge')}>↻</span>}
         {f.status === 'c' && <span className="st"><span className="a">+{f.add}</span> <span className="x">−{f.del}</span>{many ? ` · ${f.secs.length} fn` : ''}</span>}
       </div>
       {shown.length > 0 && <pre>{shown.map((l, i) => <span key={i} className={l[0] === '+' ? 'p' : 'm'}>{l}</span>)}</pre>}

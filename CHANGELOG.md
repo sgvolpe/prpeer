@@ -5,6 +5,14 @@ All notable changes to PR Peer. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Added
+- Diff views with context: *With context* and *Before | after* (side by side), with 3 lines, the whole function or the whole file around each change (`GET /api/diff`).
+- Who uses a function: 🔎 lists every place its name appears in the PR's head, definition first and tests marked, and jumps to the line (`GET /api/uses`).
+- Kind of change per function (new, removed, format only, signature) and a *Changes for the outside* list: public signatures, endpoints, environment variables, migrations, dependencies and configuration (`classify.ts`).
+- Each changed function with the tests that mention it (`🧪 N` or *no test*).
+- Review marks survive pushes: files that did not change stay reviewed, the others get `↻` and their diff can show only what is new since the review (`GET /api/since`).
+- Suggested reading order (what others use first, tests last) and keyboard shortcuts: `j`/`k`, `u`, `v`, `d`, `n`/`p`, `?`.
+- Search inside the changed code (`{ }` next to the worktree search, `GET /api/grep`).
+- Review notes on any diff line, kept in the browser, copied as Markdown or sent to a GitHub PR as one review with a verdict after confirming (`POST /api/review`).
 - Mark files as reviewed (right-click a card or the *Reviewed* box in the diff): they fade on the map, get a ✓ in the worktree and count in the top bar. Stored per PR head.
 - CI failures on the map: annotations of failed GitHub checks mark the card, the worktree row, the file panel and the diff lines they point at.
 - Comment on a diff line of a GitHub PR (right-click a line → *Comment on GitHub*). You write it and confirm it; the server checks the line is part of the PR. It is the only write PR Peer does on GitHub, and the AI never triggers it.

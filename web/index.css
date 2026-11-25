@@ -185,3 +185,46 @@ small{color:var(--mut)}
 .seenbox{margin-left:12px;font:12px system-ui,sans-serif;color:var(--mut);cursor:pointer;vertical-align:middle}
 .dl.ci{box-shadow:inset 3px 0 var(--del)}.dl.ci i:first-child{color:var(--del)}
 #dexp textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px;font:12px ui-monospace,monospace;color:var(--tx);background:var(--inp);border:1px solid var(--bd);border-radius:6px;resize:vertical}
+/* diff views: by function / with context / side by side */
+#dview{display:flex;gap:4px;align-items:center;margin-left:auto;margin-right:10px}
+#dview button{width:auto;height:24px;padding:0 9px;font-size:12px;opacity:.75}#dview button.on{background:var(--lnk);color:#fff;opacity:1}
+#dview .sep{width:1px;height:16px;background:var(--bd);margin:0 4px}
+.hk2{border:1px solid var(--bd);border-radius:6px;margin:10px 0;overflow:hidden}
+ .hk2 .dl.p span::before{content:'+'}.hk2 .dl.m span::before{content:'-'}.hk2 .dl.c span::before{content:' '}
+.dl.c{opacity:.8}.dl.e{background:repeating-linear-gradient(45deg,transparent,transparent 5px,#ffffff08 5px,#ffffff08 10px);min-height:17px}
+.sr{display:grid;grid-template-columns:1fr 1fr;gap:0 2px}.sr .dl{min-width:0}.sr .dl span{overflow:hidden;text-overflow:ellipsis}
+.gap.more{cursor:pointer;color:var(--lnk)}.gap.more:hover{text-decoration:underline}
+/* who uses a function */
+a.use{cursor:pointer;text-decoration:none;font-size:11px;opacity:.6;margin-left:4px}a.use:hover{opacity:1}
+.uf{margin:8px 0 2px}.ul{display:flex;gap:8px;font:11px ui-monospace,monospace;padding:1px 4px;border-radius:3px}.ul i{color:var(--mut);font-style:normal;min-width:32px;text-align:right}
+.ul.go{cursor:pointer}.ul.go:hover{background:#4aa3ff22}.ul.def code{color:var(--chg)}
+.dl.flash{outline:2px solid var(--lnk);outline-offset:-2px}
+/* kind of change and what changes for the outside */
+.tg{display:inline-block;margin-left:5px;padding:0 5px;border-radius:8px;font:10px system-ui,sans-serif;vertical-align:1px;border:1px solid var(--bd);color:var(--mut)}
+.tg.t-new{color:var(--add);border-color:var(--add)}.tg.t-removed{color:var(--del);border-color:var(--del)}.tg.t-signature{color:var(--chg);border-color:var(--chg)}
+.surf{margin-top:8px;border-top:1px solid var(--bd);padding-top:6px}.surf h4{cursor:help}
+.sf{padding:2px 0;font-size:12px}.sf.go{cursor:pointer}.sf.go:hover b{text-decoration:underline}.sf code{display:block;font:11px ui-monospace,monospace;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tg.t-notest{color:var(--del);border-style:dashed}a.tg.t-test{color:var(--add);border-color:var(--add);cursor:pointer;text-decoration:none}
+/* changed since the user's review */
+#tree .stale::after{content:' ↻';color:var(--chg)}.df.stale::before{content:'↻ ';color:var(--chg)}
+#top_ .tst .st2{color:var(--chg);border-color:var(--chg);cursor:pointer}
+/* reading order and keyboard help */
+.ord{margin-top:8px}.ord ol{margin:4px 0;padding-left:22px}.ord li{padding:1px 0}.ord li.seen a{opacity:.55}.ord li.seen::marker{color:var(--add)}.ord li.stale::marker{color:var(--chg)}
+kbd{font:11px ui-monospace,monospace;padding:0 4px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;background:var(--inp)}
+#keys{position:fixed;right:340px;bottom:24px;z-index:50;background:var(--pan);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;box-shadow:0 10px 30px #0008;font-size:12px;cursor:pointer}
+#keys table{border-collapse:collapse;margin-top:6px}#keys td{padding:3px 8px 3px 0;vertical-align:top}#keys td:first-child{white-space:nowrap}
+/* search in the changed code */
+#tCode{font:600 11px ui-monospace,monospace}#tCode.on{background:var(--lnk);color:#fff}
+.codeq{margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--bd)}.codeq .ul span.doc{white-space:nowrap}.codeq .ul code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+mark{background:#f0a03055;color:inherit;border-radius:2px}
+/* review notes */
+#thread.ntm #chat,#thread.ntm #ctx,#thread.ntm #story,#thread.ntm #rev,#thread.ntm #jrp{display:none}#thread.ntm{overflow:hidden}
+#thread.ntm #ntp{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;padding:6px 10px;line-height:1.45}
+#top_ .tst .nt2{color:#e3b341;border-color:#e3b341;cursor:pointer}
+.dl.nt{box-shadow:inset -3px 0 #e3b341}
+.nti{position:relative;padding:4px 18px 4px 0;border-bottom:1px solid var(--bd);font-size:12px}.nti a:first-child{cursor:pointer;color:var(--lnk);font:11px ui-monospace,monospace}
+.nti code{font:11px ui-monospace,monospace;color:var(--mut)}.nti p{margin:2px 0;white-space:pre-wrap}.nti.loc{opacity:.6}.nti .x2{position:absolute;right:2px;top:4px;cursor:pointer;color:var(--mut)}
+.ntsend{margin-top:10px}.ntsend textarea,#dexp #ntx{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px;font:12px ui-monospace,monospace;color:var(--tx);background:var(--inp);border:1px solid var(--bd);border-radius:6px;resize:vertical}
+.ntsend label{font-size:12px;margin-right:8px;cursor:pointer}
+#top_ .tst>span[hidden]{display:none}
+.codeq h4{text-transform:none;letter-spacing:0}

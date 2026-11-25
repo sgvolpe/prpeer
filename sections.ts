@@ -12,6 +12,7 @@ export function buildSections(f: FileDiff, syms?: Sym[]): Section[] {
   for (const h of f.hunks) {
     let o = h.oldStart, n = h.newStart;
     for (const l of h.lines) {
+      if (l.k === ' ') { o++; n++; continue; } // context lines only appear in diffs asked with context; sections are built from -U0
       const line = n;
       const s = syms ? at(line) : undefined;
       const key = f.status === 'deleted' ? '(deleted file)' : syms ? (s?.name ?? '(module)') : (h.header || '(file)');

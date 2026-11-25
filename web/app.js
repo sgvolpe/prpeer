@@ -21,7 +21,7 @@ for(const f of PRD.files){
   DIRRAW[dirname(f.path)]=rawDir(f.path);(D[dirname(f.path)]??=[]).push([k,'c',f.add,f.del,f.preview||'']);
   const what=$t('file.'+f.status,{from:f.oldPath})+(f.binary?$t('file.binary'):$t('file.stats',{add:f.add,del:f.del,n:f.sections.length}));
   // fns: [name, explanation, code, churn, start line, length, [[o,n] per line]]
-  const fns=f.sections.map(s=>[s.name,E(s.doc?s.doc.split('\n')[0]:s.kind+' · +'+s.add+' −'+s.del),'',s.add+s.del,s.first,Math.max(1,s.last-s.first+1),null]);
+  const fns=f.sections.map(s=>[s.name,E(s.doc?s.doc.split('\n')[0]:s.kind+' · +'+s.add+' −'+s.del),'',s.add+s.del,s.first,Math.max(1,s.last-s.first+1),null,s.tags||[],s.tests??null]);
   M[k]={what:E(what),doc:f.doc||'',loaded:false,fns,total:f.total||Math.max(0,...f.sections.map(s=>s.last))+15};
 }
 for(const l of PRD.linked){DIRRAW[dirname(l.path)]=rawDir(l.path);(D[dirname(l.path)]??=[]).push([key[l.path],'l']);M[key[l.path]]={what:E($t('file.linkedWith',{list:l.via.map(v=>key[v]).join(', ')})),doc:'',fns:[],total:0}}
@@ -31,18 +31,38 @@ const CL=PRD.changelog?PRD.changelog.map(([g,xs])=>[g,xs.map(E)]):null;
 const PR=`<b>${E(PRD.title)}</b>`;
 const POSKEY='prpeer:'+PRD.head;
 ttl.textContent=PRD.title;ttl.title=PRD.title;if(/^https?:\/\//.test(PRD.url||'')){const a=document.createElement('a');a.href=PRD.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='↗';a.title=$t('home.openHost');a.style.cssText='margin-left:6px;text-decoration:none';a.onclick=e=>e.stopPropagation();ttl.after(a)}wt.textContent=$t('wt.title',{head:PRD.head.slice(0,8)});document.title='PR Peer · '+PRD.title;
-// files marked as reviewed (like GitHub's Viewed), by path and per PR head: a new push starts over
-const SK='prpeer:seen:'+PRD.head;let SEEN=new Set();try{SEEN=new Set(JSON.parse(localStorage[SK]||'[]'))}catch{}
+// files marked as reviewed (like GitHub's Viewed): path -> the PR head it was reviewed at, kept per PR (PRD.key) across pushes.
+// SEEN: reviewed at this head. STALE: reviewed at an earlier head and changed since (or that head can no longer be compared).
+const RK='prpeer:rv:'+(PRD.key||PRD.title);let RV={};try{RV=JSON.parse(localStorage[RK]||'{}')||{}}catch{}
+const SEEN=new Set(Object.keys(RV).filter(p=>RV[p]===PRD.head)),STALE=new Set();
+const saveRV=()=>{try{localStorage[RK]=JSON.stringify(RV)}catch{}};
+(async()=>{const olds=[...new Set(Object.values(RV).filter(h=>h!==PRD.head))];if(!olds.length)return;
+  for(const h of olds){const r=await fetch(`/api/since?s=${PRD.sid}&from=${encodeURIComponent(h)}`).then(x=>x.ok?x.json():null).catch(()=>null),changed=new Set(r?.files||[]);
+    for(const [p,hh] of Object.entries(RV))if(hh===h){if(r?.known&&!changed.has(p)){RV[p]=PRD.head;SEEN.add(p)}else STALE.add(p)}}
+  saveRV();marks();render()})();
 // where the failed CI checks point (GitHub only: /api/meta brings them)
 const CI=k=>(META?.annotations||[]).filter(a=>a.path===PATHOF[k]);
-function setSeen(k,on){const p=PATHOF[k];on?SEEN.add(p):SEEN.delete(p);try{localStorage[SK]=JSON.stringify([...SEEN])}catch{}marks();if(dlg.open)drawSide()}
+function setSeen(k,on){const p=PATHOF[k];if(on){SEEN.add(p);RV[p]=PRD.head}else{SEEN.delete(p);delete RV[p]}STALE.delete(p);saveRV();marks();if(dlg.open)drawSide()}
+function staleMap(){const ks=[...STALE].map(p=>key[p]).filter(k=>k&&M[k]);if(!ks.length)return;sels=ks.map(k=>({t:'file',k}));openKey=null;render();bump();mapCtrl.show?.(ks,6)}
 // marks of the tree rows, the counter in the top bar and the map cards: reviewed and failed in CI
 function marks(){const C=Object.values(D).flat().filter(x=>x[1]=='c'&&!hidWhy(PATHOF[x[0]])).map(x=>x[0]),n=C.filter(k=>SEEN.has(PATHOF[k])).length;
   seenN.hidden=!C.length;seenN.textContent=$t('seen.count',{n,t:C.length});seenN.classList.toggle('all',n==C.length);
-  for(const k in treeFile){treeFile[k].classList.toggle('seen',SEEN.has(PATHOF[k]));treeFile[k].classList.toggle('cifail',CI(k).length>0)}
+  const ns=[...STALE].filter(p=>key[p]).length;staleN.hidden=!ns;staleN.textContent=$t('stale.count',{n:ns});
+  for(const k in treeFile){treeFile[k].classList.toggle('seen',SEEN.has(PATHOF[k]));treeFile[k].classList.toggle('stale',STALE.has(PATHOF[k]));treeFile[k].classList.toggle('cifail',CI(k).length>0)}
   bump()}
+// kind of change of each section (server: classify.ts) and what changes for whoever uses the code
+const TAGS=['new','removed','format','signature'];
+function tagChips(tg){return (tg||[]).filter(t=>TAGS.includes(t)).map(t=>`<span class="tg t-${t}" title="${EA($t('tag.'+t+'.tip'))}">${$t('tag.'+t)}</span>`).join('')}
+// tests that mention each function (server: pairFunctionTests); a click lists them with the rest of its uses
+function testChip(ts,s,f){if(!ts)return'';if(!ts.length)return `<span class="tg t-notest" title="${EA($t('test.noneTip'))}">${$t('test.none')}</span>`;const n=shortName(s);
+  return `<a class="tg t-test" title="${EA($t('test.someTip',{list:ts.map(x=>x.path+':'+x.line).join(', ')}))}"${n?` onclick="event.stopPropagation();usesOf(${J(n)},${J(f||dAct)})"`:''}>🧪 ${ts.length}</a>`}
+const SURF=PRD.surface||[],SURF_ICON={signature:'✎',removed:'✕',endpoint:'⇆',env:'$',migration:'⛁',deps:'📦',config:'⚙'};
+function surfHtml(fl){const set=new Set(fl.map(k=>PATHOF[k])),xs=SURF.filter(x=>set.has(x.path)&&SURF_ICON[x.kind]);if(!xs.length)return'';
+  const row=x=>{const k=key[x.path];return `<div class="sf${k&&M[k]?.fns.length?' go':''}"${k&&M[k]?.fns.length?` onclick="openAt(${J(k)},${+x.line||0})"`:''}><b>${SURF_ICON[x.kind]} ${$t('surf.'+x.kind)}</b> <span class="doc">${E(x.path)}${x.line?':'+x.line:''}</span>${x.line?`<code>${E(x.text)}</code>`:''}</div>`};
+  return `<div class="surf"><h4 title="${EA($t('surf.tip'))}">⇄ ${$t('surf.title',{n:xs.length})}</h4>${xs.slice(0,8).map(row).join('')}${xs.length>8?`<details><summary>${$t('fn.more',{n:xs.length-8})}</summary>${xs.slice(8).map(row).join('')}</details>`:''}</div>`}
+async function openAt(k,line,old){await openDiff(null,k);if(line)goLine(line,old)}
 const ch=f=>info(f).fns.reduce((s,x)=>s+(x[3]??x[2].split('\n').length),0);
-const item=(f,[s,e,c])=>`<div class="fn"><code>${esc(s)}</code> <span class="doc">${E(f)}</span><p>${e}</p>${c?`<pre>${esc(c)}</pre>`:''}</div>`;
+const item=(f,[s,e,c,,,,,tg,ts])=>`<div class="fn"><code>${esc(s)}</code> ${useBtn(s,f)}${tagChips(tg)}${testChip(ts,s,f)}<span class="doc">${E(f)}</span><p>${e}</p>${c?`<pre>${esc(c)}</pre>`:''}</div>`;
 function fnList(fs){const it=fs.flatMap(f=>info(f).fns.map(x=>[f,x])).sort((a,b)=>(b[1][3]??0)-(a[1][3]??0)),h=it.slice(0,4).map(x=>item(...x)).join(''),t=it.slice(4);
   return h+(t.length?`<details><summary>${$t('fn.more',{n:t.length})}</summary>${t.map(x=>item(...x)).join('')}</details>`:'')}
 const clHtml=full=>!CL?'':`<div class="cl"><h4>Changelog · [Unreleased]</h4>`+(full||zl>0?CL.map(([g,xs])=>`<p><b>${g}</b></p><ul>${xs.map(x=>`<li>${x}</li>`).join('')}</ul>`).join(''):`<p>${CL.map(([g,xs])=>xs.length+' '+g).join(' · ')}</p>`)+`</div>`;
@@ -99,7 +119,7 @@ function summary(fl,lvl,label){
   return s}
 const rd=d=>README[d]?`<div class="rd"><h4>README · ${d}/</h4><p>${README[d]}</p></div>`:'';
 const ordered=f=>M[f].fns.map((x,i)=>[x,i]).sort((a,b)=>a[0][4]-b[0][4]);
-const mm=(f,click)=>{const T=M[f].total;return `<div class="mm">`+ordered(f).map(([x,i])=>`<b title="${x[0].replace(/"/g,'')} · L${x[4]}" style="left:${x[4]/T*100}%;width:${Math.max(1.5,x[5]/T*100)}%"${click?` onclick="document.getElementById('h${i}').scrollIntoView()"`:''}></b>`).join('')+`</div>`};
+const mm=(f,click)=>{const T=M[f].total;return `<div class="mm">`+ordered(f).map(([x,i])=>`<b title="${x[0].replace(/"/g,'')} · L${x[4]}" style="left:${x[4]/T*100}%;width:${Math.max(1.5,x[5]/T*100)}%"${click?` onclick="goSec(${i})"`:''}></b>`).join('')+`</div>`};
 const treeFile={},treeDir={};const dirOf={};let sels=[],zl=1,openKey=null;
 const tree=document.getElementById('tree'),map=document.getElementById('map');
 // worktree tree (the map is drawn by React Flow)
@@ -164,7 +184,7 @@ function render(){
   else if(sels.length==1&&zl>0)extra=rd(dirOf[sels[0].k]);
   const label=names.length?(names.length>2?$t('ctx.nsel',{n:names.length}):names.join(', ')):$t('ctx.thisPRCap');
   lazyCode();
-  ctx.innerHTML=`<div class="sum"><h4>${$t('ctx.summary')}</h4>${metaHtml()}<p>${summary(fl,zl,label)}</p>${moodHtml(chg)}${aiSumHtml()}</div>`+ctxBar()+(chg.length?`<button class="dbtn" onclick="openDiff()">${$t('diff.openAll',{n:chg.length})}</button>`:'')+h+extra+`<p class="doc" style="margin-top:8px">${$t('ctx.dropHint')}</p>`;
+  ctx.innerHTML=codeHtml()+`<div class="sum"><h4>${$t('ctx.summary')}</h4>${metaHtml()}<p>${summary(fl,zl,label)}</p>${moodHtml(chg)}${surfHtml(fl)}${aiSumHtml()}</div>`+(sels.length?'':orderHtml())+ctxBar()+(chg.length?`<button class="dbtn" onclick="openDiff()">${$t('diff.openAll',{n:chg.length})}</button>`:'')+h+extra+`<p class="doc" style="margin-top:8px">${$t('ctx.dropHint')}</p>`;
   if(aiAuto&&!aiSum[sumKey()]&&!aiRun.has(sumKey()))aiSummary();
 }
 function pick(s,add){
@@ -193,9 +213,9 @@ const selFiles=()=>{const fl=sels.length?[...new Set(sels.flatMap(x=>x.t=='dir'?
 function hunkLines(fi,x){return x[2].split('\n').map((l,i)=>[l[0]=='-'?'-':'+',l.slice(2),...(x[6]?.[i]||[])])}
 let pe=1,dl=0;
 function diffHtml(f){pe=1;dl=0;const T=M[f].total,ann=CI(f);return ordered(f).map(([x,i])=>{const st=x[4],gap=st>pe?`<div class="gap">${$t('diff.gap',{n:st-pe,a:pe,b:st-1})}</div>`:'';let ol=st,nl=st+dl;const n0=nl;
-  const rows=hunkLines(i,x).map(([k,t,o,n])=>{const lo=o??'',ln=n??'',a=n!=null&&ann.find(a=>n>=a.line&&n<=a.end);return `<div class="dl ${k=='+'?'p':k=='-'?'m':''}${a?' ci':''}"${a?` data-ci="${EA(a.check+': '+a.message)}"`:''}><i>${lo}</i><i>${ln}</i><span>${k}${esc(t)}</span></div>`}),rest=rows.slice(30);
+  const rows=hunkLines(i,x).map(([k,t,o,n])=>{const lo=o??'',ln=n??'',a=n!=null&&ann.find(a=>n>=a.line&&n<=a.end);return `<div class="dl ${k=='+'?'p':k=='-'?'m':''}${a?' ci':''}" data-k="${k}"${o!=null?` data-o="${o}"`:''}${n!=null?` data-n="${n}"`:''}${a?` data-ci="${EA(a.check+': '+a.message)}"`:''}><i>${lo}</i><i>${ln}</i><span>${k}${esc(t)}</span></div>`}),rest=rows.slice(30);
   const ls=hunkLines(i,x);dl+=ls.filter(l=>l[0]=='+').length-ls.filter(l=>l[0]=='-').length;pe=st+x[5];
-  return gap+`<div class="hk" id="h${i}"><div class="hh">@@ L${st}–${st+x[5]-1} @@ ${esc(x[0])} <span class="doc">${esc(x[1].replace(/<[^>]+>/g,''))}</span></div>${rows.slice(0,30).join('')}${rest.length?`<details><summary>${$t('diff.moreLines',{n:rest.length})}</summary>${rest.join('')}</details>`:''}</div>`}).join('')+`<div class="gap">${$t('diff.gapEnd',{n:T-pe,t:T})}</div>`}
+  return gap+`<div class="hk" id="h${i}"><div class="hh">@@ L${st}–${st+x[5]-1} @@ ${esc(x[0])} ${useBtn(x[0])}${tagChips(x[7])}${testChip(x[8],x[0])}<span class="doc">${esc(x[1].replace(/<[^>]+>/g,''))}</span></div>${x[7]?.includes('format')?`<details><summary>${$t('tag.fmtShow',{n:rows.length})}</summary>${rows.join('')}</details>`:rows.slice(0,30).join('')+(rest.length?`<details><summary>${$t('diff.moreLines',{n:rest.length})}</summary>${rest.join('')}</details>`:'')}</div>`}).join('')+`<div class="gap">${$t('diff.gapEnd',{n:T-pe,t:T})}</div>`}
 let dFiles=[],dAct='';
 // the HTML carries only the first lines of each section; a file's full diff is requested when it is opened
 async function ensureLoaded(f){
@@ -209,24 +229,61 @@ async function ensureLoaded(f){
 // with a single file chosen, fetches its code to show it in the context panel
 function lazyCode(){const s=sels.length==1&&sels[0].t=='file'?sels[0].k:null;
   if(s&&M[s]&&!M[s].loaded&&M[s].fns.length)ensureLoaded(s).then(()=>{if(sels.length==1&&sels[0].k==s)render()}).catch(()=>{})}
+// diff views: by function (the PR's sections, changed lines only), unified with context, or side by side (before | after).
+// Context: 3 lines, whole functions or the whole file; git builds it on the server (/api/diff).
+const DV={mode:'fn',ctx:'3',since:'',sinceOn:true};try{const s=JSON.parse(localStorage['prpeer:dview']||'{}');DV.mode=s.mode||'fn';DV.ctx=s.ctx||'3'}catch{}
+const DCACHE={};
+function setDV(k,v){DV[k]=v;try{localStorage['prpeer:dview']=JSON.stringify({mode:DV.mode,ctx:DV.ctx})}catch{}drawDiff()}
+function dvBar(){const b=(k,v,l,tip)=>`<button class="${DV[k]===v?'on':''}"${tip?` title="${EA(tip)}"`:''} onclick="setDV('${k}',${J(v)})">${l}</button>`;
+  dview.innerHTML=b('mode','fn',$t('dv.fn'),$t('dv.fnTip'))+b('mode','ctx',$t('dv.ctx'))+b('mode','split',$t('dv.split'))
+   +(STALE.has(PATHOF[dAct])?`<span class="sep"></span><button class="${DV.sinceOn?'on':''}" title="${EA($t('dv.sinceTip'))}" onclick="DV.sinceOn=!DV.sinceOn;drawDiff()">${$t('dv.since')}</button>`:'')+(DV.mode=='fn'&&!DV.since?'':`<span class="sep"></span>`+b('ctx','3',$t('dv.c3'))+b('ctx','fn',$t('dv.cfn'))+b('ctx','all',$t('dv.call')))}
+function getDiff(f){const k=[f,DV.ctx,DV.since].join('|');
+  return DCACHE[k]??=fetch(`/api/diff?s=${PRD.sid}&path=${encodeURIComponent(PATHOF[f])}&ctx=${DV.ctx}${DV.since?'&since='+DV.since:''}`)
+    .then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'HTTP '+r.status);return j}).catch(e=>{delete DCACHE[k];throw e})}
+const moreCtx=()=>setDV('ctx',DV.ctx=='3'?'fn':'all');
+// one row; `one`: the side-by-side cell shows a single number (o before, n after)
+const dRow=(l,ann,one)=>{const a=l.k!='-'&&l.n!=null&&ann.find(a=>l.n>=a.line&&l.n<=a.end);
+  return `<div class="dl ${l.k=='+'?'p':l.k=='-'?'m':'c'}${a?' ci':''}" data-k="${l.k}"${l.o!=null?` data-o="${l.o}"`:''}${l.n!=null?` data-n="${l.n}"`:''}${a?` data-ci="${EA(a.check+': '+a.message)}"`:''}>`
+   +(one?`<i>${(one=='o'?l.o:l.n)??''}</i>`:`<i>${l.o??''}</i><i>${l.n??''}</i>`)+`<span>${esc(l.t)}</span></div>`};
+// split: each run of removed lines faces the added lines that replace it
+function splitRows(L,ann){const rows=[];let i=0;
+  while(i<L.length){if(L[i].k==' '){rows.push([L[i],L[i]]);i++;continue}
+    const del=[],add=[];while(i<L.length&&L[i].k=='-')del.push(L[i++]);while(i<L.length&&L[i].k=='+')add.push(L[i++]);
+    for(let j=0;j<Math.max(del.length,add.length);j++)rows.push([del[j],add[j]])}
+  return rows.map(([a,b])=>`<div class="sr">${a?dRow(a,ann,'o'):'<div class="dl e"></div>'}${b?dRow(b,ann,'n'):'<div class="dl e"></div>'}</div>`).join('')}
+function hunksHtml(f,d,split){if(!d.hunks.length)return `<p class="doc">${$t(DV.since?'dv.noneSince':'dv.none')}</p>`;
+  const ann=CI(f);let prev=0;
+  return d.hunks.map(h=>{const first=h.lines.find(l=>l.n!=null)?.n??h.newStart,gap=first>prev+1?first-prev-1:0,last=[...h.lines].reverse().find(l=>l.n!=null);if(last)prev=last.n;
+    return (gap&&DV.ctx!='all'?`<div class="gap more" onclick="moreCtx()">${$t('dv.gap',{n:gap})}</div>`:'')
+      +`<div class="hk2${split?' split':''}"><div class="hh">@@ −${h.oldStart} +${h.newStart} @@ ${esc(h.header||'')}</div>${split?splitRows(h.lines,ann):h.lines.map(l=>dRow(l,ann)).join('')}</div>`}).join('')
+   +(d.cut?`<p class="doc">${$t('dv.cut')}</p>`:'')}
 async function drawDiff(){
-  const f_=dAct;dmain.innerHTML=`<p class="doc">${$t('diff.loading')}</p>`;
-  try{await ensureLoaded(f_)}catch(e){dmain.innerHTML='<p class="err">'+esc(e.message)+'</p>';return}
+  const f_=dAct;DV.since=DV.sinceOn&&STALE.has(PATHOF[f_])?RV[PATHOF[f_]]:'';dmain.innerHTML=`<p class="doc">${$t('diff.loading')}</p>`;dvBar();
+  let d=null;
+  try{await ensureLoaded(f_);if(DV.mode!='fn'||DV.since)d=await getDiff(f_)}catch(e){if(f_==dAct)dmain.innerHTML='<p class="err">'+esc(e.message)+'</p>';return}
   if(f_!=dAct)return; // switched file while loading
   drawSide();
-  dmain.innerHTML=`<h2>${E(dAct)} <small>${stat(dAct)}</small><label class="seenbox" title="${EA($t('seen.tip'))}"><input type="checkbox" ${SEEN.has(PATHOF[dAct])?'checked':''} onchange="setSeen(${J(dAct)},this.checked)"> ${$t('seen.box')}</label></h2><div class="sum"><p>${summary([dAct],2,dAct)}</p>${moodHtml([dAct])}</div><p class="doc">${esc(info(dAct).doc)}</p>`+diffHtml(dAct);dmain.scrollTop=0}
-function drawSide(){dside.innerHTML=dFiles.map(f=>`<div class="df ${f==dAct?'on':''}${SEEN.has(PATHOF[f])?' seen':''}" onclick="dAct=${J(f)};drawDiff()">${E(f)}<small>${stat(f)}</small></div>`+(f==dAct?mm(f,1)+ordered(f).map(([x,i])=>`<div class="dfn" onclick="document.getElementById('h${i}').scrollIntoView()">${esc(x[0])}<small>L${x[4]} · ${x[3]??''}</small></div>`).join(''):'')).join('')}
+  dmain.innerHTML=`<h2>${E(dAct)} <small>${stat(dAct)}</small><label class="seenbox" title="${EA($t('seen.tip'))}"><input type="checkbox" ${SEEN.has(PATHOF[dAct])?'checked':''} onchange="setSeen(${J(dAct)},this.checked)"> ${$t('seen.box')}</label></h2>${DV.since?`<p class="fd g">${$t('dv.sinceOn',{h:E(DV.since.slice(0,8))})}</p>`:''}<div class="sum"><p>${summary([dAct],2,dAct)}</p>${moodHtml([dAct])}</div><p class="doc">${esc(info(dAct).doc)}</p>`+(d?hunksHtml(dAct,d,DV.mode=='split'):diffHtml(dAct));dmain.scrollTop=0;markNotes()}
+// jump to a section: its block in the by-function view, its first line in the others
+function goSec(i){const h=document.getElementById('h'+i);if(h)return h.scrollIntoView();const x=info(dAct).fns[i];[...dmain.querySelectorAll('.dl[data-n]')].find(r=>+r.dataset.n>=x[4])?.scrollIntoView({block:'center'})}
+function drawSide(){dside.innerHTML=dFiles.map(f=>`<div class="df ${f==dAct?'on':''}${SEEN.has(PATHOF[f])?' seen':''}${STALE.has(PATHOF[f])?' stale':''}" onclick="dAct=${J(f)};drawDiff()">${E(f)}<small>${stat(f)}</small></div>`+(f==dAct?mm(f,1)+ordered(f).map(([x,i])=>`<div class="dfn" onclick="goSec(${i})">${esc(x[0])}${tagChips(x[7])}${testChip(x[8],x[0],f)}<small>L${x[4]} · ${x[3]??''}</small></div>`).join(''):'')).join('')}
 function openDiff(list,act){dFiles=list||selFiles();if(!dFiles.length){if(act){dside.innerHTML='';dmain.innerHTML=`<h2>${esc(act)}</h2><p class="doc">${$t('file.noRel')}</p>`;dlg.showModal()}return} // unchanged file: say so instead of doing nothing
-if(!dFiles.includes(act)){if(act&&info(act).fns.length)dFiles=[act,...dFiles];else act=dFiles[0]}dAct=act||dFiles[0];dlg.showModal();drawDiff()}
+if(!dFiles.includes(act)){if(act&&info(act).fns.length)dFiles=[act,...dFiles];else act=dFiles[0]}dAct=act||dFiles[0];dlg.showModal();return drawDiff()}
 // full diff: hover = tooltip, right click = menu with explanations
 const NOTE=[];
-function lineInfo(t){const hk=t.closest&&t.closest('.hk');if(!hk)return null;
-  const x=info(dAct).fns[+hk.id.slice(1)],hh=t.closest('.hh'),r=t.closest('.dl');
+const noteOf=(r,k,txt)=>r.dataset.ci?'<span class="err">✗ CI · '+esc(r.dataset.ci)+'</span>':(NOTE.find(a=>a[0].test(txt))||[])[1]||$t(k=='+'?'diff.note.add':k=='-'?'diff.note.del':'diff.note.ctx');
+// the section that holds a line (views with context have no per-section blocks)
+const secAt=(f,ln)=>info(f).fns.find(x=>ln>=x[4]&&ln<x[4]+x[5])||['('+$t('dv.file')+')',info(f).what,'',0,ln,1,null];
+function lineInfo(t){const hk=t.closest&&t.closest('.hk,.hk2');if(!hk)return null;
+  const hh=t.closest('.hh'),r=t.closest('.dl');
+  if(hk.classList.contains('hk2')){if(hh||!r||r.classList.contains('e'))return null;
+    const k=r.dataset.k,o=r.dataset.o,n=r.dataset.n,txt=r.querySelector('span').textContent,x=secAt(dAct,+(n||o));
+    return{x,k,txt,ln:n||o,o,n,title:x[0],note:noteOf(r,k,txt)}}
+  const x=info(dAct).fns[+hk.id.slice(1)];
   if(hh)return{x,head:1,title:x[0],note:x[1]};
   if(!r)return null;
   const k=r.classList.contains('p')?'+':r.classList.contains('m')?'-':' ',txt=r.querySelector('span').textContent.slice(1),ns=[...r.querySelectorAll('i')].map(i=>i.textContent);
-  const n=r.dataset.ci?'<span class="err">✗ CI · '+esc(r.dataset.ci)+'</span>':(NOTE.find(a=>a[0].test(txt))||[])[1]||$t(k=='+'?'diff.note.add':k=='-'?'diff.note.del':'diff.note.ctx');
-  return{x,k,txt,ln:ns[1]||ns[0],o:ns[0],n:ns[1],title:x[0],note:n}}
+  return{x,k,txt,ln:ns[1]||ns[0],o:ns[0],n:ns[1],title:x[0],note:noteOf(r,k,txt)}}
 const cn=f=>{const c=conn(f);return [c.uses.length?$t('cn.uses',{list:c.uses.join(', ')}):'',c.by.length?$t('cn.usedBy',{list:c.by.join(', ')}):''].filter(Boolean).join(' · ')};
 const tip=document.createElement('div'),menu=document.createElement('div');tip.id='dtip';menu.id='dmenu';dlg.append(tip,menu);let cur=null;
 dmain.onmousemove=e=>{const i=lineInfo(e.target);if(!i){tip.style.display='none';return}
@@ -234,7 +291,7 @@ dmain.onmousemove=e=>{const i=lineInfo(e.target);if(!i){tip.style.display='none'
   tip.style.display='block';tip.style.left=Math.min(e.clientX+14,innerWidth-380)+'px';tip.style.top=e.clientY+16+'px'};
 dmain.onmouseleave=()=>tip.style.display='none';
 dmain.oncontextmenu=e=>{const i=lineInfo(e.target);if(!i)return;e.preventDefault();cur=i;tip.style.display='none';
-  menu.innerHTML=`<div onclick="explain(0)">${$t(i.head?'menu.explainSec':'menu.explainLine')}</div>${i.head?'':`<div onclick="explain(1)">${$t('menu.explainWhole')}</div>`}<div onclick="explain(0);aiExplain(${i.head?1:0})">${$t('ai.explain')}</div><div onclick="askChat()">${$t('menu.askChat')}</div>${PRD.canComment&&!i.head?`<div onclick="cmtOpen()">${$t('cmt.menu')}</div>`:''}`;
+  menu.innerHTML=`<div onclick="explain(0)">${$t(i.head?'menu.explainSec':'menu.explainLine')}</div>${i.head?'':`<div onclick="explain(1)">${$t('menu.explainWhole')}</div>`}<div onclick="explain(0);aiExplain(${i.head?1:0})">${$t('ai.explain')}</div><div onclick="askChat()">${$t('menu.askChat')}</div>${i.head?'':`<div onclick="noteOpen()">${$t('nt.menu')}</div>`}${shortName(i.title)?`<div onclick="usesOf(${J(shortName(i.title))})">${$t('uses.menu',{name:esc(shortName(i.title))})}</div>`:''}${PRD.canComment&&!i.head&&(i.k=='+'||i.k=='-')?`<div onclick="cmtOpen()">${$t('cmt.menu')}</div>`:''}`;
   menu.style.display='block';menu.style.left=Math.min(e.clientX,innerWidth-240)+'px';menu.style.top=Math.min(e.clientY,innerHeight-130)+'px'};
 dlg.addEventListener('click',()=>menu.style.display='none');
 function explain(full){menu.style.display='none';const i=cur,sec=full||i.head;
@@ -255,6 +312,107 @@ async function cmtSend(){const t=cmtx.value.trim(),c=CMT;if(!t||!c)return;
     if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
     cmtx.disabled=true;cmto.innerHTML=$t('cmt.sent')+(/^https:\/\//.test(j.url||'')?` <a href="${EA(j.url)}" target="_blank" rel="noopener noreferrer">${$t('cmt.view')}</a>`:'')}
   catch(e){cmtb.disabled=false;cmto.innerHTML='<span class="err">'+E(e.message)+'</span>'}}
+// ---- review notes: remarks on lines while reviewing, kept in this browser per PR. On a GitHub PR they can go as one review
+// with a verdict: only when the user sends it and confirms, and only notes on changed lines of this version of the PR.
+const NK='prpeer:notes:'+(PRD.key||PRD.title);let NOTES=[],NOTE_AT=null,NTon=false;try{NOTES=JSON.parse(localStorage[NK]||'[]')||[]}catch{}
+const saveNotes=()=>{try{localStorage[NK]=JSON.stringify(NOTES)}catch{}notesBar();markNotes();if(NTon)ntDraw()};
+const noteAt=(p,line,side)=>NOTES.find(n=>n.path===p&&n.line===line&&n.side===side);
+const sendableNote=n=>n.k!=' '&&n.head===PRD.head;
+function noteOpen(){menu.style.display='none';const i=cur,side=i.k=='-'?'LEFT':'RIGHT',line=+(side=='LEFT'?i.o:i.n);if(!line)return;
+  const p=PATHOF[dAct],old=noteAt(p,line,side);NOTE_AT={path:p,line,side,k:i.k,code:i.txt.trim().slice(0,200)};
+  dexp.hidden=false;dexp.innerHTML=`<a class="x" onclick="dexp.hidden=true">✕</a><b>${$t('nt.title')} · ${E(dAct)}:${line}</b><p><code>${esc(i.txt.trim())}</code></p>`
+   +`<textarea id="ntx" rows="3" maxlength="20000" placeholder="${EA($t('nt.ph'))}">${E(old?.text||'')}</textarea><button class="aib" onclick="noteSave()">${$t('nt.save')}</button>`
+   +(old?` <button class="aib" onclick="noteDel(${J(old.id)});dexp.hidden=true">${$t('nt.del')}</button>`:'')+` <span class="doc">${$t(i.k==' '?'nt.localOnly':'nt.hint')}</span>`;
+  ntx.focus()}
+function noteSave(){const t=ntx.value.trim(),a=NOTE_AT;if(!a)return;const old=noteAt(a.path,a.line,a.side);
+  if(!t){if(old)noteDel(old.id);dexp.hidden=true;return}
+  if(old)Object.assign(old,{text:t,head:PRD.head});else NOTES.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),...a,text:t,head:PRD.head});
+  saveNotes();dexp.hidden=true}
+function noteDel(id){NOTES=NOTES.filter(n=>n.id!==id);saveNotes()}
+function markNotes(){if(!dlg.open)return;const p=PATHOF[dAct];for(const r of dmain.querySelectorAll('.dl.nt')){r.classList.remove('nt');r.removeAttribute('title')}
+  for(const n of NOTES.filter(n=>n.path===p)){const r=findRow(n.line,n.side=='LEFT');if(r){r.classList.add('nt');r.title='📝 '+n.text}}}
+function notesBar(){notesN.hidden=!NOTES.length;notesN.textContent=$t('nt.count',{n:NOTES.length})}
+function ntOpen(){if(NTon)return ntClose();if(STon)stClose();if(RVon)rvClose();if(JRon)jrClose();NTon=true;ntDraw()}
+function ntClose(){NTon=false;ntDraw()}
+function ntDraw(){ntp.hidden=!NTon;thread.classList.toggle('ntm',NTon);if(!NTon)return;
+  const by=new Map();for(const n of NOTES)(by.get(n.path)??by.set(n.path,[]).get(n.path)).push(n);
+  const ok=NOTES.filter(sendableNote).length,local=NOTES.length-ok;
+  ntp.innerHTML=`<div class="sth"><b>${$t('nt.panel',{n:NOTES.length})}</b><button onclick="ntCopy()" title="${EA($t('nt.copyTip'))}">⧉</button><button onclick="ntClose()" title="${$t('common.close')}">✕</button></div>`
+   +(NOTES.length?[...by].map(([p,ns])=>{const k=key[p];return `<div class="uf"><b>${E(p)}</b>`+ns.sort((a,b)=>a.line-b.line).map(n=>`<div class="nti${sendableNote(n)?'':' loc'}"><a${k?` onclick="openAt(${J(k)},${n.line},${n.side=='LEFT'?1:0})"`:''}>L${n.line}${n.side=='LEFT'?' −':''}</a> <code>${E(n.code)}</code><p>${E(n.text)}</p><a class="x2" title="${$t('nt.del')}" onclick="noteDel(${J(n.id)})">✕</a></div>`).join('')+'</div>'}).join(''):`<p class="doc">${$t('nt.empty')}</p>`)
+   +(PRD.canComment?`<div class="ntsend"><h4>${$t('nt.sendTitle')}</h4><textarea id="rvBody" rows="3" maxlength="20000" placeholder="${EA($t('nt.bodyPh'))}"></textarea>`
+     +['COMMENT','APPROVE','REQUEST_CHANGES'].map((v,i)=>`<label><input type="radio" name="rvEv" value="${v}"${i?'':' checked'}> ${$t('nt.ev.'+v)}</label>`).join(' ')
+     +`<p class="doc">${$t('nt.sendNote',{n:ok})}${local?' '+$t('nt.localN',{n:local}):''}</p><button class="aib" id="rvSend" onclick="ntSend()">${$t('nt.send')}</button> <span id="rvOut"></span></div>`
+    :`<p class="doc">${$t('nt.noGithub')}</p>`)}
+async function ntSend(){const ev=document.querySelector('input[name=rvEv]:checked')?.value||'COMMENT',body=rvBody.value.trim(),list=NOTES.filter(sendableNote);
+  if(ev!='APPROVE'&&!body&&!list.length){rvOut.textContent=$t('nt.nothing');return}
+  if(!confirm($t('nt.confirm',{ev:$t('nt.ev.'+ev),n:list.length,pr:META?.id?'#'+META.id:''})))return;
+  rvSend.disabled=true;rvOut.textContent='…';
+  try{const r=await fetch('/api/review?s='+PRD.sid,{method:'POST',headers:{'content-type':'application/json','x-prpeer':'1'},body:JSON.stringify({event:ev,text:body,comments:list.map(n=>({path:n.path,line:n.line,side:n.side,text:n.text}))})}),j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
+    const ids=new Set(list.map(n=>n.id));NOTES=NOTES.filter(n=>!ids.has(n.id));saveNotes();
+    rvOut.innerHTML=$t('nt.sent')+(/^https:\/\//.test(j.url||'')?` <a href="${EA(j.url)}" target="_blank" rel="noopener noreferrer">${$t('cmt.view')}</a>`:'')}
+  catch(e){rvSend.disabled=false;rvOut.innerHTML='<span class="err">'+E(e.message)+'</span>'}}
+// the notes as Markdown, to paste anywhere (a PR from another host, a chat)
+function ntCopy(){navigator.clipboard?.writeText([...new Set(NOTES.map(n=>n.path))].map(p=>`### ${p}\n`+NOTES.filter(n=>n.path===p).map(n=>`- L${n.line}${n.side=='LEFT'?' (antes)':''}: ${n.text}`).join('\n')).join('\n\n'))}
+notesBar();
+// ---- reading order: what the rest of the PR uses goes first, then what depends on it, tests last; a cycle is broken by risk and size
+function readingOrder(){const C=Object.values(D).flat().filter(x=>x[1]=='c'&&!hidWhy(PATHOF[x[0]])).map(x=>x[0]),set=new Set(C);
+  const deps=new Map(C.map(k=>[k,new Set()]));for(const [a,b] of L)if(set.has(a)&&set.has(b)&&a!==b)deps.get(a).add(b); // a uses b: b first
+  const rank=k=>(isTestPath(PATHOF[k])?1e6:0)-mood(k).s*100-ch(k)/1e3,out=[],done=new Set();
+  while(out.length<C.length){const left=C.filter(k=>!done.has(k)),ready=left.filter(k=>[...deps.get(k)].every(d=>done.has(d)));
+    const k=(ready.length?ready:left).sort((a,b)=>rank(a)-rank(b))[0];out.push(k);done.add(k)}
+  return out}
+function orderHtml(){const o=readingOrder();if(o.length<2)return'';
+  const by=k=>L.filter(e=>e[1]==k&&o.includes(e[0])).length;
+  return `<div class="ord"><h4>${$t('ord.title')}</h4><ol>`+o.slice(0,12).map(k=>`<li class="${SEEN.has(PATHOF[k])?'seen':''}${STALE.has(PATHOF[k])?' stale':''}">${nm(k)} <small class="doc">${isTestPath(PATHOF[k])?$t('ord.test'):by(k)?$t('ord.usedBy',{n:by(k)}):''}</small></li>`).join('')
+   +`</ol>${o.length>12?`<p class="doc">${$t('fn.more',{n:o.length-12})}</p>`:''}<p class="doc">${$t('ord.hint')}</p></div>`}
+// ---- keyboard. Map: j/k walk the reading order, u = next unreviewed, v = reviewed, d/Enter = diff. Diff: j/k blocks, n/p files. ? = help.
+const curFile=()=>dlg.open?dAct:openKey||(sels.length==1&&sels[0].t=='file'?sels[0].k:null);
+function stepIn(list,d,unseen){const i=list.indexOf(curFile()),base=i<0?(d>0?-1:list.length):i;
+  for(let n=1;n<=list.length;n++){const k=list[((base+d*n)%list.length+list.length)%list.length];if(!unseen||!SEEN.has(PATHOF[k]))return k}}
+function stepHunk(d){const top=dmain.getBoundingClientRect().top,hs=[...dmain.querySelectorAll('.hk,.hk2')],off=hs.map(h=>h.getBoundingClientRect().top-top);
+  const h=d>0?hs.find((_,i)=>off[i]>8):hs.filter((_,i)=>off[i]<-8).pop();h?.scrollIntoView({block:'start'})}
+function toggleSeen(k){if(!k||!M[k]?.fns.length)return;setSeen(k,!SEEN.has(PATHOF[k]));const cb=dlg.open&&dmain.querySelector('.seenbox input');if(cb)cb.checked=SEEN.has(PATHOF[dAct])}
+const KEYS=[['j / k','keys.jk'],['u','keys.u'],['v','keys.v'],['d · Enter','keys.d'],['n / p','keys.np'],['+ − 0','keys.zoom'],['[ ]','keys.levels'],['?','keys.help']];
+function keysHelp(){keys.hidden=!keys.hidden;if(!keys.hidden)keys.innerHTML=`<b>${$t('keys.title')}</b><table>${KEYS.map(([k,t])=>`<tr><td><kbd>${k}</kbd></td><td>${$t(t)}</td></tr>`).join('')}</table>`}
+addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||e.target.closest?.('input,textarea,select,[contenteditable]'))return;
+  const k=e.key;let done=true;
+  if(k=='?')keysHelp();
+  else if(dlg.open){
+    if(k=='j'||k=='k')stepHunk(k=='j'?1:-1);
+    else if(k=='n'||k=='p'||k=='u'){const f=stepIn(dFiles,k=='p'?-1:1,k=='u');if(f&&f!=dAct){dAct=f;drawDiff()}}
+    else if(k=='v')toggleSeen(dAct);
+    else done=false}
+  else if(k=='j'||k=='k'||k=='u'){const f=stepIn(readingOrder(),k=='k'?-1:1,k=='u');if(f)focus(f)}
+  else if(k=='v')toggleSeen(curFile());
+  else if((k=='d'||k=='Enter')&&!/BUTTON|A/.test(e.target.tagName)){const o=readingOrder();openDiff(o.length?o:null,curFile()||o[0])}
+  else done=false;
+  if(done)e.preventDefault()});
+// ---- who uses a function or class: every whole-word match in the PR's head (git grep), the definition first, tests marked
+function shortName(s){const m=/([A-Za-z_$][\w$]*)\s*(\(|$)/.exec(String(s).split(/\.|::|#/).pop().trim());return m&&m[1].length>1?m[1]:null}
+function useBtn(s,f){const n=shortName(s);return n?`<a class="use" title="${EA($t('uses.menu',{name:n}))}" onclick="event.stopPropagation();usesOf(${J(n)},${J(f||dAct)})">🔎</a>`:''}
+let USES=null;
+async function usesOf(name,from){menu.style.display='none';
+  if(!dlg.open)openDiff(null,from&&info(from).fns.length?from:undefined);
+  const head=`<a class="x" onclick="dexp.hidden=true">✕</a><b>${$t('uses.title',{name:esc(name)})}</b> `;
+  dexp.hidden=false;dexp.innerHTML=head+`<span class="doc">…</span>`;
+  try{const r=await fetch(`/api/uses?s=${PRD.sid}&name=${encodeURIComponent(name)}`),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
+    USES=j.hits;const by=new Map();for(const h of j.hits)(by.get(h.path)??by.set(h.path,[]).get(h.path)).push(h);
+    const files=[...by].sort((a,b)=>b[1].some(h=>h.def)-a[1].some(h=>h.def)||a[1][0].test-b[1][0].test||(b[1][0].on>'')-(a[1][0].on>''));
+    const tag=hs=>hs.some(h=>h.def)?$t('uses.def'):hs[0].test?'🧪 '+$t('uses.test'):$t('uses.'+(hs[0].on||'o'));
+    dexp.innerHTML=head+`<span class="doc">${$t('uses.count',{n:j.hits.length,f:by.size})}${j.more?' (+'+j.more+')':''}</span>`
+     +(files.some(([p])=>key[p])?` <button class="aib" onclick="usesMap()">${$t('uses.map')}</button>`:'')
+     +(files.length?files.map(([p,hs])=>{const k=key[p],go=k&&M[k].fns.length;return `<div class="uf"><b>${E(p)}</b> <small class="doc">${tag(hs)}</small>`
+       +hs.map(h=>`<div class="ul${h.def?' def':''}${go?' go':''}"${go?` onclick="goUse(${J(k)},${h.line})"`:''}><i>${h.line}</i><code>${E(h.text)}</code></div>`).join('')+'</div>'}).join(''):`<p class="doc">${$t('uses.none')}</p>`)}
+  catch(e){dexp.innerHTML=head+'<span class="err">'+E(e.message)+'</span>'}}
+async function goUse(k,line){if(!dFiles.includes(k))dFiles.push(k);dAct=k;await drawDiff();goLine(line)}
+const findRow=(n,old)=>[...dmain.querySelectorAll(old?'.dl[data-o]':'.dl[data-n]')].find(r=>+(old?r.dataset.o:r.dataset.n)===n);
+// scrolls to a line of the open file; if this view does not show it, switches to the whole file with context
+async function goLine(n,old){let r=findRow(n,old);if(!r&&(DV.mode=='fn'||DV.ctx!='all')){if(DV.mode=='fn')DV.mode='ctx';DV.ctx='all';await drawDiff();r=findRow(n,old)}
+  if(r){r.scrollIntoView({block:'center'});r.classList.add('flash');setTimeout(()=>r.classList.remove('flash'),1600)}}
+function usesMap(){const ks=[...new Set((USES||[]).map(h=>key[h.path]).filter(Boolean))];if(!ks.length)return;
+  if(hide.linked&&ks.some(k=>LINKEDP.has(PATHOF[k]))){hide.linked=false;applyHidden();drawTree()}
+  dlg.close();sels=ks.map(k=>({t:'file',k}));openKey=null;render();bump();mapCtrl.show?.(ks,6)}
 function askChat(){const i=cur;dlg.close();q.value=$t(i.head?'ask.explainSec':'ask.explainLine',{what:i.head?i.title:i.txt.trim(),f:dAct});f.requestSubmit()}
 document.body.insertAdjacentHTML('beforeend',`<datalist id="allf">${Object.keys(M).map(k=>`<option value="${EA(k)}">`).join('')}</datalist>`);
 // ---- AI: provider / model / effort. Config and keys live on the server; here you only choose.
@@ -422,6 +580,7 @@ async function stOpen(force){
   if(STon&&!force){stClose();return}
   if(RVon)rvClose();
   if(JRon)jrClose();
+  if(NTon)ntClose();
   STon=true;
   if(ST&&!ST.err&&!force){stDraw();return}
   ST={busy:true};stDraw();
@@ -443,7 +602,7 @@ function rvDraw(){rev.hidden=!RVon;thread.classList.toggle('rv',RVon);rvT.classL
   rev.innerHTML=`<div class="sth"><b>${$t('rv.title')}</b><button onclick="rvClose()" title="${$t('common.close')}">✕</button></div><div class="rvb">${RV_TOOLS.map(([id,l,t])=>`<button class="${id==RVa?'on':''}${RVr[id]&&!RVr[id].busy&&!RVr[id].failed?' done':''}" title="${EA(t)}" onclick="rvRun('${id}')">${l}</button>`).join('')}</div>`
    +`<div id="rvout">${r?(r.pre||'')+(r.busy&&!r.txt?`<p class="doc">${$t('rv.analyzing')}</p>`:mdc(r.txt||''))+(r.busy?'':`<p><button class="aib" onclick="rvRun('${RVa}',true)">${$t(r.failed?'common.retry':'rv.rerun')}</button></p>`):`<p class="doc">${$t('rv.pick')}</p>`}</div>`}
 function rvClose(){RVon=false;rvDraw()}
-function rvOpen(){if(RVon){rvClose();return}if(STon)stClose();if(JRon)jrClose();RVon=true;rvDraw()}
+function rvOpen(){if(RVon){rvClose();return}if(STon)stClose();if(JRon)jrClose();if(NTon)ntClose();RVon=true;rvDraw()}
 async function rvRun(id,force){
   RVa=id;if(RVr[id]&&!force&&!RVr[id].failed){rvDraw();return}
   const r=RVr[id]={busy:true,txt:'',pre:''},upd=()=>{if(RVa==id)rvDraw()};
@@ -482,7 +641,7 @@ function jrDraw(){jrp.hidden=!JRon;thread.classList.toggle('jrm',JRon);jrT.class
   else body=JR.jira.map(jrCard).join('')+(JR.configured?'':`<div class="fd g">${$t(JR.jira.some(x=>x.url)?'jira.off':'jira.offNoLink')} <a href="/home#conexiones">${$t('story.connectJiraPlain')}</a></div>`);
   jrp.innerHTML=head+body}
 function jrClose(){JRon=false;jrDraw()}
-function jrOpen(){if(JRon){jrClose();return}if(STon)stClose();if(RVon)rvClose();JRon=true;jrDraw();if(!JR)jrLoad()}
+function jrOpen(){if(JRon){jrClose();return}if(STon)stClose();if(RVon)rvClose();if(NTon)ntClose();JRon=true;jrDraw();if(!JR)jrLoad()}
 async function jrLoad(force){
   if(JR&&JR.busy)return;if(JR&&!force){jrDraw();return}
   JR={busy:true,jira:JR?JR.jira:[]};jrDraw();
@@ -589,22 +748,35 @@ try{collapsed=new Set(JSON.parse(localStorage[TK]||'[]'))}catch{}
 const saveTree=()=>{try{localStorage[TK]=JSON.stringify([...collapsed])}catch{}};
 function paint(n,show,q,qa){ // show: all its ancestors are open
   let c=0,any=false;const open=qa||!collapsed.has(n.path);
-  for(const k of n.files){const m=!(hide.linked&&LINKEDP.has(PATHOF[k]))&&(!qa||pathQuery.matchQuery(q,PATHOF[k]));if(qa&&m)c++;any||=m;treeFile[k].style.display=show&&open&&m?'':'none'}
+  for(const k of n.files){const m=!(hide.linked&&LINKEDP.has(PATHOF[k]))&&(!qa||qMatch(q,PATHOF[k]));if(qa&&m)c++;any||=m;treeFile[k].style.display=show&&open&&m?'':'none'}
   for(const kid of n.kids.values()){const r=paint(kid,show&&open,q,qa);c+=r.c;any||=r.any}
   n.row.style.display=show&&any?'':'none';n.row.firstChild.textContent=open?'▾ ':'▸ ';
   return{c,any}}
 function drawTree(){
   const q=tq.value.trim(),qa=!!q;let n=0;
   for(const top of TREE.kids.values())n+=paint(top,true,q,qa).c;
-  tcount.textContent=qa?$t('tree.matches',{n}):'';
-  tHide.disabled=tOnly.disabled=!qa||!n}
+  tcount.textContent=!qa?'':CODEQ&&CODE?$t('tree.codeMatches',{n:CODE.hits.length,f:n}):$t('tree.matches',{n});
+  tHide.disabled=tOnly.disabled=CODEQ||!qa||!n}
 const toggleDir=d=>{collapsed.has(d)?collapsed.delete(d):collapsed.add(d);saveTree();drawTree()};
 tColl.onclick=()=>{collapsed=new Set(allNodes.map(n=>n.path));saveTree();drawTree()};
 tExp.onclick=()=>{collapsed.clear();saveTree();drawTree()};
 const addRule=f=>{const q=tq.value.trim();if(!q)return;f(q);tq.value='';drawTree();applyHidden()};
 tHide.onclick=()=>addRule(q=>{if(!hide.queries.includes(q))hide.queries.push(q)});
 tOnly.onclick=()=>addRule(q=>{hide.only=q});
-tq.oninput=drawTree;
+// search in the changed code instead of the paths (the { } button): the tree and the map keep the files that mention it, the panel lists the lines
+let CODEQ=false,CODE=null,codeT=0;
+const qMatch=(q,p)=>CODEQ?!CODE||!!CODE.files[p]:pathQuery.matchQuery(q,p);
+function runCode(){clearTimeout(codeT);const q=tq.value.trim();
+  if(!CODEQ||q.length<2){if(CODE){CODE=null;render()}drawTree();return}
+  codeT=setTimeout(async()=>{const r=await fetch(`/api/grep?s=${PRD.sid}&q=${encodeURIComponent(q)}`).then(x=>x.ok?x.json():null).catch(()=>null);
+    if(tq.value.trim()!==q||!CODEQ)return;CODE=r&&{q,...r};drawTree();
+    const ks=Object.keys(CODE?.files||{}).map(p=>key[p]).filter(k=>k&&!hidWhy(PATHOF[k]));
+    if(ks.length){sels=ks.map(k=>({t:'file',k}));openKey=null;render();bump();mapCtrl.show?.(ks,6)}else render()},250)}
+function codeHtml(){if(!CODE)return'';const re=new RegExp(E(CODE.q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),hl=t=>E(t).replace(re,m=>'<mark>'+m+'</mark>');
+  return `<div class="codeq"><h4>${$t('code.title',{q:E(CODE.q),n:CODE.hits.length})}</h4>`+(CODE.hits.length?CODE.hits.slice(0,60).map(h=>{const k=key[h.path],go=k&&M[k]?.fns.length;
+    return `<div class="ul${go?' go':''}"${go?` onclick="openAt(${J(k)},${+h.line||0},${h.k=='-'?1:0})"`:''}><i>${h.k}</i><span class="doc">${E(h.path.split('/').pop())}:${h.line??''}</span><code>${hl(h.text)}</code></div>`}).join(''):`<p class="doc">${$t('code.none')}</p>`)+'</div>'}
+tCode.onclick=()=>{CODEQ=!CODEQ;tCode.classList.toggle('on',CODEQ);tq.placeholder=$t(CODEQ?'tree.searchCode':'tree.search');CODE=null;runCode();tq.focus()};
+tq.oninput=()=>CODEQ?runCode():drawTree();
 const chip=(label,rm)=>{const s=document.createElement('span');s.className='tchip';s.textContent=label;const x=document.createElement('a');x.textContent=' ✕';x.title=$t('common.remove');x.onclick=rm;s.append(x);return s};
 function drawChips(){tchips.replaceChildren(...[...hide.queries.map(q=>chip('🙈 '+q,()=>{hide.queries=hide.queries.filter(x=>x!==q);applyHidden()})),hide.only?chip($t('hide.onlyChip',{q:hide.only}),()=>{hide.only='';applyHidden()}):null].filter(Boolean))}
 drawTree();applyHidden();
@@ -615,7 +787,7 @@ const mapCtrl=window.mountMap?window.mountMap(document.getElementById('rf'),{
   data:mapData(),posKey:POSKEY,
   snapshot:()=>mapStore.snap,subscribe:f=>{mapStore.subs.add(f);return()=>mapStore.subs.delete(f)},
   hidden:k=>!!hidWhy(PATHOF[k]),mood:k=>{const m=mood(k);return{l:m.l,why:m.why}},
-  pinned:()=>PIN,reviewed:k=>SEEN.has(PATHOF[k]),ci:k=>{const a=CI(k);return a.length?a.map(x=>`${x.check} · L${x.line}: ${x.message}`):null},
+  pinned:()=>PIN,stale:k=>STALE.has(PATHOF[k]),ext:k=>{const xs=SURF.filter(x=>x.path===PATHOF[k]);return xs.length?xs.map(x=>$t('surf.'+x.kind)+(x.line?' · L'+x.line+': '+x.text:'')):null},reviewed:k=>SEEN.has(PATHOF[k]),ci:k=>{const a=CI(k);return a.length?a.map(x=>`${x.check} · L${x.line}: ${x.message}`):null},
   onView:v=>{VIEW=v;const b=document.getElementById('inview');if(b)b.innerHTML=viewChips()},
   onLevel:z=>{if(z!==zl){zl=z;render()}},
   cardClick:(k,e)=>cardClick(k,e),dirClick:(d,e)=>pick({t:'dir',k:d},e.shiftKey||e.ctrlKey||e.metaKey),

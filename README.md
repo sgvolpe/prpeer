@@ -259,12 +259,30 @@ Three panels: **worktree** on the left, **map** in the middle and **Assistant** 
 | `+` / `-` | Zoom in / out |
 | `0` | Fit everything |
 | `[` / `]` | Close / open one folder level |
+| `j` / `k` | Next / previous file in reading order (in the diff: next / previous block) |
+| `u` | Next unreviewed file |
+| `v` | Mark or unmark the current file as reviewed |
+| `d` · `Enter` | Open the current file's diff |
+| `n` / `p` | In the diff: next / previous file |
+| `?` | Show the shortcuts |
+
+**Reading order.** With nothing selected, the panel suggests where to start: first the files the rest of the PR uses, then what depends on them, tests last (cycles are broken by risk and size). `j` / `k` walk it.
+
+**Diff views.** *By function* shows only the changed lines, grouped by function. *With context* and *Before | after* (side by side) show the unchanged lines around them: 3 lines, the whole function or the whole file; *show more* between blocks widens it.
+
+**Kind of change.** Each function is tagged *new*, *removed*, *format only* (the same code with other spacing, folded in the diff) or *signature* (its name or parameters changed). **Changes for the outside** lists what can break whoever uses the code: public signatures, removed public functions, endpoints, environment variables, migrations, dependencies and configuration; their cards get a `⇄`.
+
+**Who uses it and its tests.** 🔎 next to a function lists every place its name appears in the PR's head (definition first, tests marked) and jumps to the line. Each changed function shows `🧪 N` (tests that mention it) or *no test*.
+
+**Search the changed code.** The `{ }` button next to the worktree search looks inside the changed lines instead of the names: the tree and the map keep the files that mention it and the panel lists the lines.
+
+**Review notes.** Right-click a line of the diff → *Note on this line*. Notes stay in the browser (📝 in the top bar opens them, ⧉ copies them as Markdown). On a GitHub PR they can be sent as one review with a verdict (comment, approve, request changes), only after you confirm.
 
 **Right-click menu.**
 - On a card: pin it open (always in the AI context), explain it with AI, show its relations, explain how the selected N relate, mark it as reviewed, center, copy path, show only this file.
 - On a line of the full diff (GitHub PRs only): **Comment on GitHub** opens a box where you write the comment; it is posted only after you press *Post to GitHub* and confirm. The AI never posts.
 
-**Review progress.** Files you mark as reviewed (right-click a card, or the *Reviewed* box in the diff) fade on the map, get a ✓ in the worktree and count in the top bar (`✓ 3/7 reviewed`). It is stored in the browser per PR head, so a new push starts over.
+**Review progress.** Files you mark as reviewed (right-click a card, the *Reviewed* box in the diff or `v`) fade on the map, get a ✓ in the worktree and count in the top bar (`✓ 3/7 reviewed`). They are stored in the browser per PR. After a new push, the ones that did not change stay reviewed and the others get a `↻` (top bar: *N changed since your review*); in their diff, *↻ Only what is new* shows just what changed since you reviewed them.
 
 **CI failures.** On GitHub PRs, the annotations of failed checks mark their files: a red edge and `✗ CI` on the card, `✗` in the worktree, the failure at the top of the file's panel and a red edge on the lines it points at in the diff.
 - On a folder: fit it, keep only this one open, explain the module.
@@ -393,7 +411,7 @@ It is read from the **base branch**, not the PR's: a PR cannot loosen its own ru
 - The page carries a content policy that keeps anything from leaving its origin; a PR's code is treated as untrusted data.
 - API keys never reach the browser. Those you enter from Connections are stored in `~/.prpeer/connections.json`, readable only by your user.
 - Code only travels to the AI provider you choose and only when you ask it something. What is sent is built by the server, capped at about 80,000 characters of context; on bigger PRs the files that do not fit are first summarized in batches (up to 6 extra requests, cached like any answer).
-- PR Peer writes to GitHub in one case only: a line comment you write in the diff and confirm. Nothing else (and never the AI) posts, pushes or changes the repo.
+- PR Peer writes to GitHub in two cases only: a line comment you write in the diff, or your notes sent as a review; both after you confirm, and only on the PR's changed lines. Nothing else (and never the AI) posts, pushes or changes the repo.
 - Sessions opened from the app are remembered in `~/.prpeer/sessions.json` (what was opened, no code), so a `/pr/<id>` link reopens after a restart. Saved AI answers in `~/.prpeer/answers` unused for 60 days are deleted.
 
 ## Windows and WSL

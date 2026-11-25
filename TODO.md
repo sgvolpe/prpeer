@@ -11,7 +11,8 @@ Ideas, in order of value for reviewing a PR:
 
 ## Review
 - Show progress while the AI builds the story (on big PRs the batch summaries run first, with no feedback yet).
-- Reviewed marks: keep the ones whose file did not change in a new push (today a new head starts over).
+- Who uses / tests per function match by name (git grep): use the import graph to drop same-named functions of other modules.
+- Review notes are per browser: sync them through `~/.prpeer` if people review from several machines.
 - Persist the open-folders state of the map.
 
 ## Author intents (see GUIA-PR-PEER.md)

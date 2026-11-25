@@ -27,6 +27,9 @@ const DYNAMIC = [
   ...['secret', 'signal'].map(s => 'scan.level.' + s), ...['env', 'gh', 'saved', 'cli'].map(s => 'conn.from.' + s),
   ...['open', 'merged', 'closed'].map(s => 'home.state.' + s),
   ...['conn', 'ai', 'repos', 'look', 'data', 'usage'].map(s => 'set.tab.' + s), ...['github', 'jira', 'anthropic', 'cli', 'other'].map(s => 'conn.guide.' + s),
+  ...['c', 'l', 'o'].map(s => 'uses.' + s), ...['COMMENT', 'APPROVE', 'REQUEST_CHANGES'].map(s => 'nt.ev.' + s),
+  ...['new', 'removed', 'format', 'signature'].flatMap(s => ['tag.' + s, 'tag.' + s + '.tip']),
+  ...['signature', 'removed', 'endpoint', 'env', 'migration', 'deps', 'config'].map(s => 'surf.' + s),
 ];
 
 test('every key the web files use exists in the dictionaries', () => {

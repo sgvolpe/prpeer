@@ -3,7 +3,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parseDiff } from './diff.ts';
-import { buildSections, type Sym, type Section } from './sections.ts';
+import { buildSections, type Sym } from './sections.ts';
+import { pairFunctionTests, surfaceOf, tagSection } from './classify.ts';
 import { buildGraph, pairTests, resolveImports, type Imp } from './graph.ts';
 import { CODE_NOISE, indexRepo, langOf, resolveRef, templateRefs } from './langs.ts';
 import { analyzeTs, isTsFile, parseTsconfig, resolveSpec, specsOf, type TsConfig } from './tslang.ts';
@@ -82,8 +83,12 @@ export function analyze(o: AnalyzeOpts) {
     const graph = buildGraph(changed, targets, o.maxLinks ?? 8);
     const files = diffs.map(f => {
       const r = at(f.path);
-      const sections: Section[] = buildSections(f, r?.symbols);
+      const sections = buildSections(f, r?.symbols).map(s => ({ ...s, tags: tagSection(s) }));
       return { ...f, doc: r?.doc ?? null, total: r?.total, parseError: r?.error, sections, hunks: f.hunks.map(({ lines: _l, ...h }) => h) };
+    });
+    pairFunctionTests(files, names => {
+      try { return git('-C', dir, '-c', 'core.quotepath=off', 'grep', '-n', '-I', '-w', '-F', ...names.flatMap(n => ['-e', n]), '--', '.'); }
+      catch (e) { if ((e as { status?: number }).status === 1) return ''; throw e; } // 1 = no match
     });
     // mood: defaults < user config < the repo's .prpeer.json. Read from the BASE (already merged), not the PR head:
     // the regexes run in the browser and a PR must not be able to bring its own.
@@ -92,7 +97,7 @@ export function analyze(o: AnalyzeOpts) {
     const mood = resolveMood({ src: 'defaults' }, { src: 'config', cfg: o.moodCfg }, { src: '.prpeer.json (rama base)', cfg: repoMood });
     const cl = files.find(f => /(^|\/)CHANGELOG\.md$/i.test(f.path) && f.status !== 'deleted');
     const payload = {
-      title: o.title, base: { ref: o.baseRef, sha: base }, head, worktree: dir, files, ...graph,
+      title: o.title, base: { ref: o.baseRef, sha: base }, head, worktree: dir, files, ...graph, surface: surfaceOf(files),
       readmes: readmes(dir, [...files.map(f => f.path), ...graph.linked.map(l => l.path)]),
       mood,
       changelog: cl ? changelog(readPlain(join(dir, cl.path)) ?? '') : null,

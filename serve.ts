@@ -26,6 +26,11 @@ export type Api = {
   open(body: unknown): Promise<unknown>;
   reopen?(sid: string): Promise<boolean>; // a remembered session (opened before a restart): open it again under the same sid
   comment?(sid: string, body: unknown): Promise<unknown>; // a line comment the user wrote, posted to the PR on its host
+  diff?(sid: string, path: string, ctx: string, since?: string): unknown; // one file's diff with context ('3' | 'fn' | 'all'), or since an earlier head
+  uses?(sid: string, name: string): unknown; // where a function or class name appears in the PR's head
+  since?(sid: string, from: string): unknown; // files changed between an earlier head the user reviewed and this one
+  grep?(sid: string, q: string): unknown; // text search in the PR's changed lines
+  review?(sid: string, body: unknown): Promise<unknown>; // the user's notes posted as one review with a verdict
   clone(body: unknown): Promise<unknown>;
   connect(body: unknown): Promise<unknown>;
   disconnect(body: unknown): Promise<unknown>;
@@ -120,6 +125,10 @@ export function serve(port: number, api: Api, log?: (line: string) => void) {
         if (u === '/api/search') return json(res, 200, await api.search(q('source'), q('owner'), q('kind'), q('state') || 'open', q('q'), Number(q('page')) || 1, q('author') || undefined));
         if (u === '/api/commits') return json(res, 200, await api.commits(q('source'), q('repo'), q('ref') || undefined, Number(q('page')) || 1, q('author') || undefined));
         if (u === '/api/graph') return json(res, 200, await api.graph(q('repo')));
+        if (u === '/api/grep' && api.grep) return json(res, 200, api.grep(q('s'), q('q')));
+        if (u === '/api/since' && api.since) return json(res, 200, api.since(q('s'), q('from')));
+        if (u === '/api/uses' && api.uses) return json(res, 200, api.uses(q('s'), q('name')));
+        if (u === '/api/diff' && api.diff) return json(res, 200, api.diff(q('s'), q('path'), q('ctx'), q('since') || undefined));
         if (u === '/api/file') { const l = api.file(q('s'), q('path')); return json(res, l ? 200 : 404, l); }
       } else if (req.method === 'POST') {
         if (req.headers['x-prpeer'] !== '1') { res.writeHead(403); res.end(); return; }
@@ -128,6 +137,7 @@ export function serve(port: number, api: Api, log?: (line: string) => void) {
         if (u === '/api/disconnect') return json(res, 200, await api.disconnect(JSON.parse(await readBody(req, 20_000))));
         if (u === '/api/settings' && api.saveSettings) return json(res, 200, await api.saveSettings(JSON.parse(await readBody(req, 20_000))));
         if (u === '/api/cache/clear' && api.clearCache) return json(res, 200, await api.clearCache(JSON.parse(await readBody(req, 20_000))));
+        if (u === '/api/review' && api.review) return json(res, 200, await api.review(q('s'), JSON.parse(await readBody(req, 500_000))));
         if (u === '/api/comment' && api.comment) return json(res, 200, await api.comment(q('s'), JSON.parse(await readBody(req, 40_000))));
         if (u === '/api/graph-summary') return json(res, 200, await api.graphSummary(JSON.parse(await readBody(req, 20_000))));
         if (u === '/api/clone') return json(res, 200, await api.clone(JSON.parse(await readBody(req))));
