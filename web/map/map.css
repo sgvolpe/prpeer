@@ -1,7 +1,7 @@
 /* Map styles (React Flow). The .card, .fold, .md, .mm… classes come from index.html; only the canvas-specific bits live here. */
-#rf{position:absolute;inset:0 0 46px}
+#rf{position:absolute;inset:0 0 92px}
 .react-flow{background:transparent!important;--xy-attribution-background-color-default:transparent}
-.react-flow .fold{position:relative;width:100%;height:100%;padding:0;box-sizing:border-box;border:1px solid var(--bd);border-radius:8px;background:#0e0e0e}
+.react-flow .fold{position:relative;width:100%;height:100%;padding:0;box-sizing:border-box;border:1px solid var(--bd);border-radius:8px;background:var(--sur)}
 .react-flow .fold.sel{border-color:#fff}
 .react-flow .fold-head{display:block;margin:0;padding:6px 8px;font:600 12px ui-monospace,monospace;color:var(--mut);cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* modules level: the folder is a block with a large name */
@@ -22,9 +22,8 @@
 .react-flow .card .mm{position:relative}
 .react-flow__handle.h{opacity:0;pointer-events:none;min-width:0;min-height:0;width:1px;height:1px;border:0}
 .react-flow__node{cursor:default}
-.react-flow__controls-button{background:#141413;color:var(--tx);border-bottom:1px solid var(--bd)}
+.react-flow__controls-button{background:var(--btn);color:var(--tx);border-bottom:1px solid var(--bd)}
 .react-flow__controls-button svg{fill:var(--tx)}
-.react-flow__minimap{border:1px solid var(--bd);border-radius:8px}
 .react-flow__attribution{background:transparent}
 .lvl{background:var(--pan);border:1px solid var(--bd);border-radius:8px;padding:4px 10px;color:var(--mut);font-size:12px}
 /* responsive cards: the second row of numbers (tier 2) and the resizable module */
@@ -34,7 +33,7 @@
 .rzh{width:9px!important;height:9px!important;border-radius:3px!important;background:var(--lnk)!important;border:0!important;opacity:0;transition:opacity .12s}
 .rzl{border-color:var(--lnk)!important;opacity:0;transition:opacity .12s}
 .react-flow__node:hover .rzh,.react-flow__node:hover .rzl{opacity:.9}
-.react-flow .fmore{position:absolute;left:0;right:0;bottom:0;height:18px;line-height:18px;padding:0 8px;font-size:11px;color:var(--chg);background:#0e0e0e;border-top:1px dashed var(--bd);border-radius:0 0 8px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
+.react-flow .fmore{position:absolute;left:0;right:0;bottom:0;height:18px;line-height:18px;padding:0 8px;font-size:11px;color:var(--chg);background:var(--sur);border-top:1px dashed var(--bd);border-radius:0 0 8px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
 
 .react-flow .edgebtn{cursor:pointer;border:1px solid var(--bd);margin-right:6px}.react-flow .edgebtn:hover{color:var(--tx);border-color:var(--lnk)}
 
@@ -51,7 +50,7 @@
 @keyframes pop{from{opacity:0;transform:scale(.93) translateY(4px)}to{opacity:1;transform:none}}
 .react-flow .fold,.react-flow .card{animation:pop .24s cubic-bezier(.2,.8,.2,1) both;transition:height .3s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s,background-color .25s,transform .15s}
 .react-flow .card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.45)}
-.react-flow .fold.mod:hover{border-color:#262624;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.react-flow .fold.mod:hover{border-color:var(--bd2);box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .react-flow .card.sel,.react-flow .fold.sel{outline:none;border-color:#fff;box-shadow:0 0 0 2px #fff,0 8px 26px rgba(74,163,255,.38);animation:pop .24s cubic-bezier(.2,.8,.2,1) both,glow .5s ease-out}
 @keyframes glow{from{box-shadow:0 0 0 2px #fff,0 0 0 14px rgba(255,255,255,.25)}to{box-shadow:0 0 0 2px #fff,0 8px 26px rgba(74,163,255,.38)}}
 .react-flow__edge-path{transition:stroke .25s,stroke-width .25s,opacity .25s}
@@ -65,7 +64,7 @@
 /* map toolbar: zoom and folder levels */
 .react-flow .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:calc(100% - 24px);margin-top:52px}/* below the #top_ bar (Home · title), which floats at the top left */
 .react-flow .tbg{display:flex;align-items:center;gap:4px;background:var(--pan);border:1px solid var(--bd);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
-.react-flow .tbg button{background:#141413;color:var(--tx);border:1px solid var(--bd);border-radius:6px;min-width:28px;height:28px;padding:0 8px;cursor:pointer;font:12px system-ui;white-space:nowrap}
+.react-flow .tbg button{background:var(--btn);color:var(--tx);border:1px solid var(--bd);border-radius:6px;min-width:28px;height:28px;padding:0 8px;cursor:pointer;font:12px system-ui;white-space:nowrap}
 .react-flow .tbg button:disabled{opacity:.4;cursor:default;filter:none}
 .react-flow .tbg .pct{min-width:52px;font-variant-numeric:tabular-nums}
 .react-flow .tbg input[type=range]{width:110px;accent-color:var(--lnk)}
@@ -83,3 +82,25 @@
 .react-flow .card{transition:height .3s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s,background-color .25s,transform .15s,opacity .35s,filter .35s}
 .react-flow .card.fx0:hover,.react-flow .card.fx1:hover{opacity:1;filter:none}
 .react-flow .caret{cursor:pointer;padding:0 4px;margin-left:-4px}.react-flow .caret:hover{color:#fff}
+
+/* ---- fine tuning: glass toolbar always readable, filled zoom slider, softer depth on cards ---- */
+.react-flow .tb{opacity:.92;gap:8px}
+.react-flow .tbg{background:rgba(14,14,13,.72)!important;backdrop-filter:blur(10px) saturate(1.3);border:1px solid var(--bd2);box-shadow:0 8px 24px #0008,inset 0 1px 0 #ffffff0d;padding:4px}
+.react-flow .tbg button{min-width:28px;height:28px;border-radius:8px;font-size:13px}
+.react-flow .tbg button:not(:disabled):active{background:var(--acc-bg);color:var(--acc-tx)}
+.react-flow .tbg .pct{min-width:48px;font-family:var(--mono);color:var(--tx)}
+.react-flow .tbg input[type=range]{-webkit-appearance:none;appearance:none;width:96px;height:4px;margin:0 4px;border-radius:4px;cursor:pointer;
+  background:linear-gradient(90deg,var(--lnk) var(--p,0%),var(--bd2) 0)}
+.react-flow .tbg input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--tx);box-shadow:0 0 0 3px #6aa9ff40;transition:transform .12s}
+.react-flow .tbg input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2)}
+.react-flow .tbg input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:var(--tx);box-shadow:0 0 0 3px #6aa9ff40}
+.react-flow .card{border-color:var(--bd2)}
+.react-flow .card:hover{transform:translateY(-2px);border-color:var(--faint);box-shadow:0 10px 28px #0009,inset 0 1px 0 #ffffff12}
+.react-flow .card.sel,.react-flow .fold.sel{border-color:var(--lnk);box-shadow:0 0 0 1px var(--lnk),0 0 0 5px #6aa9ff22,0 12px 32px #000a}
+@keyframes glow{from{box-shadow:0 0 0 1px var(--lnk),0 0 0 16px #6aa9ff00}to{box-shadow:0 0 0 1px var(--lnk),0 0 0 5px #6aa9ff22,0 12px 32px #000a}}
+.react-flow .fold.nest{border-color:var(--bd2);box-shadow:inset 0 1px 0 #ffffff08}
+.react-flow .fold.nest .fold-head{border-bottom:1px solid var(--bd);border-radius:14px 14px 0 0;background:#ffffff05}
+.react-flow .fold.mod{box-shadow:inset 0 1px 0 #ffffff0a,0 6px 18px #0006}
+.react-flow .fold.mod:hover{transform:translateY(-2px)}
+.react-flow__pane{cursor:grab}.react-flow__pane.dragging{cursor:grabbing}
+.lvl{background:rgba(14,14,13,.72);backdrop-filter:blur(10px);border-color:var(--bd2);border-radius:999px;padding:4px 12px}

@@ -183,3 +183,11 @@ test('related modules end up as neighbors rather than in alphabetical order', ()
   const y = (id: string) => nodes.find(n => n.id === id)!.position.y;
   assert.ok(y('d:a') < y('d:c') && y('d:c') < y('d:b'));
 });
+
+test('dragged width resizes the cards (wider or narrower) and beats the zoom width', () => {
+  const s: DirInfo[] = [{ key: 's', raw: 's', files: [f('a.py'), f('b.py')] }];
+  const card = (o: Partial<View>) => byId(buildFlow({ dirs: s, links: [] }, view({ expanded: new Set(['s']), ...o })).nodes)['f:a.py'];
+  assert.equal(card({ widths: { s: 600 } }).width, 600 - 2 * PAD);
+  assert.equal(card({ cardW: 900, widths: { s: 400 } }).width, 400 - 2 * PAD); // narrower than the zoom asks: the user wins
+  assert.equal(card({ widths: { s: 50 } }).width, CW); // never below the minimum card
+});

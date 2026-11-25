@@ -1,6 +1,6 @@
 import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  Background, BaseEdge, Handle, MiniMap, NodeResizeControl, Panel, Position, ReactFlow, ReactFlowProvider,
+  Background, BackgroundVariant, BaseEdge, Handle, NodeResizeControl, Panel, Position, ReactFlow, ReactFlowProvider,
   useEdgesState, useNodesInitialized, useNodesState, useReactFlow, useViewport, type Edge, type EdgeProps, type Node, type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -103,7 +103,7 @@ const FolderNode = memo(function FolderNode({ data }: NodeProps) {
     );
   }
   return ( // open folder: container with its files and subfolders inside; widened or narrowed by dragging the right edge
-    <div className={`fold nest${d.sel ? ' sel' : ''}`} style={{ background: `hsl(40 4% ${5 + Math.min(d.depth, 4) * 2}%)` }}>
+    <div className={`fold nest${d.sel ? ' sel' : ''}`} style={{ background: `color-mix(in srgb, var(--tx) ${3 + Math.min(d.depth, 4) * 2}%, var(--bg))` }}>
       <NodeResizeControl position="right" resizeDirection="horizontal" minWidth={BW} maxWidth={4000} className="rzh rzr"
         onResize={(_, p) => ops.width(d.path, p.width, false)} onResizeEnd={(_, p) => ops.width(d.path, p.width, true)} />
       <Handles />
@@ -123,7 +123,7 @@ const edgeTypes = { arc: ArcEdge };
 
 function toEdge(e: EdgeOut): Edge {
   const { hit, dim, intra, count } = e.data, agg = count !== undefined;
-  const stroke = hit ? '#fff' : intra ? '#b48cff' : agg ? '#4aa3ff88' : '#4aa3ff99';
+  const stroke = hit ? 'var(--tx)' : intra ? '#b48cff' : agg ? '#4aa3ff88' : '#4aa3ff99';
   const width = hit ? 2.5 : agg ? Math.min(4, 1 + Math.log2(count ?? 1) * 0.6) : 1.5; // thin: thick ones covered the content
   return {
     id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, type: e.type, selectable: false, focusable: false, hidden: e.hidden,
@@ -184,6 +184,18 @@ function Inner({ api, ctrl }: { api: MapApi; ctrl: MapCtrl }) {
   // the same node (or the block that replaces it) keeps the pointed spot.
   const cursor = useRef<{ cx: number; cy: number; px: number; py: number; t: number } | undefined>(undefined);
   const prev = useRef<Record<string, Rect> | undefined>(undefined);
+  // Smooth zoom shared by the wheel, the buttons, the keys, the slider and double click: the view eases toward `target`, anchored on (px, py).
+  const ease = (target: number, px: number, py: number) => {
+    const st = wheel.current;
+    st.target = Math.min(MAXZ, Math.max(minRef.current, target)); st.px = px; st.py = py;
+    if (st.raf) return;
+    const step = () => {
+      const { x, y, zoom: z0 } = rf.getViewport(), done = Math.abs(st.target - z0) < z0 * 0.002, z = done ? st.target : z0 + (st.target - z0) * 0.35, k = z / z0;
+      rf.setViewport({ zoom: z, x: st.px - (st.px - x) * k, y: st.py - (st.py - y) * k });
+      st.raf = done ? 0 : requestAnimationFrame(step);
+    };
+    st.raf = requestAnimationFrame(step);
+  };
   useEffect(() => {
     const el = document.getElementById('rf') as HTMLElement | null;
     if (!el) return;
@@ -193,25 +205,26 @@ function Inner({ api, ctrl }: { api: MapApi; ctrl: MapCtrl }) {
     // Smooth zoom: each wheel notch moves a target and the view eases toward it (anchored on the cursor), instead of jumping in steps.
     const st = wheel.current;
     const onWheel = (e: WheelEvent) => {
-      if ((e.target as Element | null)?.closest('.react-flow__minimap,.tb')) return;
+      if ((e.target as Element | null)?.closest('.tb')) return;
       e.preventDefault(); e.stopPropagation(); moved.current = true;
       const dy = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1)));
       if (!st.raf) st.target = rf.getViewport().zoom;
       st.target = Math.min(MAXZ, Math.max(minRef.current, st.target * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0022))));
-      const r = el.getBoundingClientRect(); st.px = e.clientX - r.left; st.py = e.clientY - r.top;
+      const r = el.getBoundingClientRect();
       // over a card, zooming in stops when it fills the map's width: past that its code runs off the sides and can't be read
       const P = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }), card = Object.entries(rects.current).find(([id, q]) => id.startsWith('f:') && contains(q, P))?.[1];
       if (card && dy < 0) st.target = Math.min(st.target, Math.max((el.clientWidth - 24) / card.w, rf.getViewport().zoom));
-      if (st.raf) return;
-      const step = () => {
-        const { x, y, zoom: z0 } = rf.getViewport(), done = Math.abs(st.target - z0) < z0 * 0.002, z = done ? st.target : z0 + (st.target - z0) * 0.3, k = z / z0;
-        rf.setViewport({ zoom: z, x: st.px - (st.px - x) * k, y: st.py - (st.py - y) * k });
-        st.raf = done ? 0 : requestAnimationFrame(step);
-      };
-      st.raf = requestAnimationFrame(step);
+      ease(st.target, e.clientX - r.left, e.clientY - r.top);
+    };
+    // double click on the empty canvas: zoom in ×2 on that spot (shift: out), with the same easing as the wheel
+    const onDbl = (e: MouseEvent) => {
+      if (!(e.target as Element | null)?.closest('.react-flow__pane') || (e.target as Element).closest('.react-flow__node')) return;
+      const r = el.getBoundingClientRect(); moved.current = true; cursor.current = { cx: e.clientX, cy: e.clientY, px: e.clientX - r.left, py: e.clientY - r.top, t: Date.now() };
+      ease(rf.getViewport().zoom * (e.shiftKey ? 0.5 : 2), e.clientX - r.left, e.clientY - r.top);
     };
     el.addEventListener('wheel', onWheel, { passive: false, capture: true });
-    return () => { el.removeEventListener('mousemove', at, true); el.removeEventListener('wheel', at, true); el.removeEventListener('wheel', onWheel, true); cancelAnimationFrame(st.raf); st.raf = 0; };
+    el.addEventListener('dblclick', onDbl);
+    return () => { el.removeEventListener('mousemove', at, true); el.removeEventListener('wheel', at, true); el.removeEventListener('wheel', onWheel, true); el.removeEventListener('dblclick', onDbl); cancelAnimationFrame(st.raf); st.raf = 0; };
   }, []);
   const underCursor = () => {
     const c = cursor.current;
@@ -269,7 +282,9 @@ function Inner({ api, ctrl }: { api: MapApi; ctrl: MapCtrl }) {
   const cardW = useRef(0);
   useEffect(() => {
     const el = document.getElementById('rf');
-    const w = el && zoom >= 1.5 ? Math.min(1200, Math.floor((el.clientWidth * 0.85) / zoom / 40) * 40) : 0;
+    // gradual: from zoom 0.9 the cards start widening and reach the full visible width at 1.8 (smoothstep), in steps of 16
+    const t = Math.max(0, Math.min(1, (zoom - 0.9) / 0.9)), s = t * t * (3 - 2 * t);
+    const full = el ? Math.min(1200, (el.clientWidth * 0.85) / zoom) : 0, w = s > 0 && full > BW ? Math.floor((BW + (full - BW) * s) / 16) * 16 : 0;
     if (w !== cardW.current) { cardW.current = w; setRev(r => r + 1); }
   }, [zoom, rev]);
   // The card being zoomed into stays whole on screen sideways (while it fits): otherwise its code runs off the edge and can't be read.
@@ -406,18 +421,23 @@ function Inner({ api, ctrl }: { api: MapApi; ctrl: MapCtrl }) {
     const r = document.getElementById('rf')?.getBoundingClientRect();
     if (r) cursor.current = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, px: r.width / 2, py: r.height / 2, t: Date.now() };
   };
-  const zoomBy = (dir: 1 | -1) => { aimCenter(); rf.zoomTo(Math.min(MAXZ, Math.max(minZoom, rf.getViewport().zoom * (dir > 0 ? 1.4 : 1 / 1.4))), { duration: 200 }); };
+  const zoomCenter = (z: number) => { aimCenter(); moved.current = true; const c = cursor.current!; ease(z, c.px, c.py); };
+  const zoomBy = (dir: 1 | -1) => zoomCenter((wheel.current.raf ? wheel.current.target : rf.getViewport().zoom) * (dir > 0 ? 1.5 : 1 / 1.5)); // repeated presses accumulate
+  const panBy = (dx: number, dy: number) => { moved.current = true; cancelAnimationFrame(wheel.current.raf); wheel.current.raf = 0; const v = rf.getViewport(); rf.setViewport({ ...v, x: v.x + dx, y: v.y + dy }, { duration: 180 }); };
   const setLevels = (n: number) => {
     const to = Math.max(0, Math.min(maxDepth, n));
     setExpanded(new Set([...depths].filter(([, d]) => d < to).map(([p]) => p)));
     setTimeout(() => ctrl.fit?.(), 350); // after the open/close animation, the result is framed
   };
-  const act = useRef({ zoomBy, stepLevel: (_: number) => {} });
-  act.current = { zoomBy, stepLevel: dir => setLevels(openLevels + dir) };
-  useEffect(() => { // shortcuts: + and − zoom, 0 fits, [ closes one folder level and ] opens one
+  const act = useRef({ zoomBy, panBy, stepLevel: (_: number) => {} });
+  act.current = { zoomBy, panBy, stepLevel: dir => setLevels(openLevels + dir) };
+  useEffect(() => { // shortcuts: + and − zoom, 0 fits, arrows pan, [ closes one folder level and ] opens one
+    const PAN: Record<string, [number, number]> = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
     const on = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest('input,textarea,select,dialog,[contenteditable]')) return;
-      if (e.key === '+' || e.key === '=') act.current.zoomBy(1);
+      const p = PAN[e.key];
+      if (p) { const s = e.shiftKey ? 360 : 120; act.current.panBy(p[0] * s, p[1] * s); }
+      else if (e.key === '+' || e.key === '=') act.current.zoomBy(1);
       else if (e.key === '-' || e.key === '_') act.current.zoomBy(-1);
       else if (e.key === '0') ctrl.fit?.();
       else if (e.key === '[') act.current.stepLevel(-1);
@@ -440,14 +460,14 @@ function Inner({ api, ctrl }: { api: MapApi; ctrl: MapCtrl }) {
           try { localStorage[posKey] = JSON.stringify(Object.fromEntries(Object.entries(pos.current).map(([k, p]) => [k, [p.x, p.y]]))); } catch { /* no storage */ }
           setRev(r => r + 1);
         }}>
-        <Background gap={22} color="#1c1c1b" />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />
         <Panel position="top-center" className="tb">
           <div className="tbg" role="group" aria-label={$t('map.zoom')}>
             <button onClick={() => zoomBy(-1)} title={$t('map.zoomOut.tip')} aria-label={$t('map.zoomOut')}>−</button>
             <input type="range" min={0} max={100} value={pct} aria-label={$t('map.zoom')} title={$t('map.zoom')}
-              onChange={e => { aimCenter(); rf.zoomTo(minZoom * Math.pow(MAXZ / minZoom, Number(e.target.value) / 100)); }} />
+              onChange={e => zoomCenter(minZoom * Math.pow(MAXZ / minZoom, Number(e.target.value) / 100))} style={{ '--p': `${pct}%` } as React.CSSProperties} />
             <button onClick={() => zoomBy(1)} title={$t('map.zoomIn.tip')} aria-label={$t('map.zoomIn')}>+</button>
-            <button className="pct" onClick={() => rf.zoomTo(1, { duration: 200 })} title={$t('map.zoomReset')}>{Math.round(zoom * 100)}%</button>
+            <button className="pct" onClick={() => zoomCenter(1)} title={$t('map.zoomReset')}>{Math.round(zoom * 100)}%</button>
             <button onClick={() => ctrl.fit?.()} title={$t('map.fit')}>⤢</button>
           </div>
           <div className="tbg" role="group" aria-label={$t('map.folders')}>
@@ -458,8 +478,6 @@ function Inner({ api, ctrl }: { api: MapApi; ctrl: MapCtrl }) {
             <button onClick={() => setLevels(maxDepth)} disabled={openLevels >= maxDepth} title={$t('map.openAll.tip')} aria-label={$t('map.openAll')}>⊞</button>
           </div>
         </Panel>
-        <MiniMap pannable zoomable nodeStrokeWidth={0} maskColor="rgba(15,17,21,.6)" style={{ background: '#0c0c0c' }}
-          nodeColor={n => (n.type === 'folder' ? '#232b3a' : (n.data as unknown as FileData | undefined)?.file?.status === 'c' ? '#f0a030' : '#4aa3ff')} />
         <Panel position="bottom-center">
           <button className="lvl edgebtn" title={$t('map.edges.tip')}
             onClick={() => { const m: EdgeMode = edgeInfo.hiding ? 'on' : 'off'; setEdgeMode(m); try { localStorage[edgesKey] = m; } catch { /* no storage */ } }}>

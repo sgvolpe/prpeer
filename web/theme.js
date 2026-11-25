@@ -6,8 +6,8 @@
   // usage stats for the home footer, every page: time with the tab visible and page opens per day. shortcut: only this browser, move to the server for cross-device stats
   { let d = {}; try { d = JSON.parse(rd('prpeer-days') || '{}'); } catch {} const day = new Date().toISOString().slice(0, 10); d[day] = (d[day] || 0) + 1; wr('prpeer-days', JSON.stringify(d));
     setInterval(() => { if (!document.hidden) wr('prpeer-time', String((Number(rd('prpeer-time')) || 0) + 30)); }, 30000); }
-  // shortcut: light inverts the whole dark UI (there are fixed colors throughout the CSS), images are re-inverted; migrate to variables if a finer light theme is needed.
-  const LIGHT = ':root[data-theme=light]{filter:invert(1) hue-rotate(180deg);background:#fff}:root[data-theme=light] img{filter:invert(1) hue-rotate(180deg)}';
+  // light: its own palette lives in ui.css (:root[data-theme=light]); nothing is inverted any more.
+  const LIGHT = '';
   // POLISH: additive visual touch-ups (see UI-CAMBIOS.md); to undo, empty this constant.
   const POLISH = 'html{-webkit-font-smoothing:antialiased;color-scheme:dark}:root[data-theme=light]{color-scheme:light}' +
     ':focus-visible{outline:2px solid var(--lnk,#4aa3ff);outline-offset:2px}' +

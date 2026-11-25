@@ -602,13 +602,37 @@ const mapCtrl=window.mountMap?window.mountMap(document.getElementById('rf'),{
   if(!tot){el.hidden=true;document.getElementById('rf').style.bottom='0';return}
   const TOP=7,shown=mods.slice(0,TOP),rest=mods.slice(TOP),pct=n=>Math.max(1,Math.round(n/tot*100)),sum=(xs,k)=>xs.reduce((s,m)=>s+m[k],0);
   if(rest.length)shown.push({d:$t('wchart.others',{n:rest.length}),f:rest.flatMap(m=>m.f).sort((p,q)=>q.t-p.t),a:sum(rest,'a'),x:sum(rest,'x'),t:sum(rest,'t'),other:true});
-  const t=document.createElement('div');t.className='wt';t.textContent=$t('wchart.title',{m:mods.length,n:mods.reduce((s,m)=>s+m.f.length,0),t:tot});
-  const b=document.createElement('div');b.className='wb';
-  for(const m of shown){const i=document.createElement('i'),pa=Math.round(m.a/m.t*100);
-    i.style.flex=String(m.t);i.style.background=`linear-gradient(90deg,var(--add) ${pa}%,var(--del) 0)`;if(m.other)i.style.opacity='.55';
-    i.textContent=`${m.other?m.d:m.d.split('/').slice(-2).join('/')+'/'} ${pct(m.t)}%`;
-    i.title=`${m.d} · +${m.a} −${m.x} · ${pct(m.t)}%\n`+m.f.slice(0,5).map(f=>`  ${PATHOF[f.k]||f.k}  +${f.a} −${f.x}`).join('\n')+(m.f.length>5?`\n  … +${m.f.length-5}`:'');
-    i.onclick=()=>mapCtrl.show?.(m.f.slice(0,40).map(f=>f.k),0);b.append(i)}
-  el.append(t,b)})();
+  // y axis: semantic importance. Heuristic = average mood score of its files (churn, fan-in, no test, risk words);
+  // AI = 0..10 per module asked to the model (cached per PR). The `other` bar takes the average of the modules it groups.
+  const AIK='prpeer-wimp:'+PRD.sid,heur=m=>m.f.reduce((s,f)=>s+(mood(f.k).s||0),0)/(m.f.length||1);
+  let ai=null;try{ai=JSON.parse(localStorage[AIK]||'null')}catch{}
+  const rf=document.getElementById('rf'),light=(m,on)=>{rf.classList.toggle('whl',on);const ids=new Set([...m.f.map(f=>'f:'+f.k),...(m.other?rest.map(r=>'d:'+r.d):['d:'+m.d])]);
+    for(const n of rf.querySelectorAll('.react-flow__node'))n.classList.toggle('wh',on&&ids.has(n.dataset.id))};
+  function draw(){el.textContent='';const useAI=!!ai,val=m=>useAI?(m.other?rest.reduce((s,r)=>s+(+ai[r.d]||0),0)/rest.length:+ai[m.d]||0):heur(m);
+    for(const m of shown)m.imp=val(m);
+    const max=useAI?10:Math.max(...shown.map(m=>m.imp))||1;
+    const t=document.createElement('div');t.className='wt';
+    const sp=document.createElement('span');sp.textContent=$t('wchart.title',{m:mods.length,n:mods.reduce((s,m)=>s+m.f.length,0),t:tot});
+    const lg=document.createElement('span');lg.className='wlg';lg.innerHTML=`<i class="wsw"></i>${$t('wchart.legend')} · <b>${$t(useAI?'wchart.byAI':'wchart.byHeur')}</b>`;
+    const btn=document.createElement('button');btn.className='wai';btn.textContent=useAI?$t('wchart.useHeur'):'✨ '+$t('wchart.useAI');
+    btn.onclick=async()=>{if(ai){ai=null;try{delete localStorage[AIK]}catch{}return draw()}
+      btn.disabled=true;btn.textContent=$t('wchart.thinking');
+      const list=mods.map(m=>`- ${m.d}: ${m.f.slice(0,12).map(f=>PATHOF[f.k]||f.k).join(', ')}${m.f.length>12?' …':''} (+${m.a} −${m.x})`).join('\n');
+      try{const a=await askAI({task:'chat',messages:[{role:'user',content:$t('wchart.prompt')+'\n\n'+list}],files:[],level:0},()=>{});
+        if(hasErr(a))throw new Error(a.replace(/^[\s\S]*?\[error\]\s*/,''));
+        const j=JSON.parse(a.slice(a.indexOf('{'),a.lastIndexOf('}')+1));ai=j;try{localStorage[AIK]=JSON.stringify(j)}catch{}}
+      catch(e){btn.textContent='⚠ '+$t('wchart.aiErr');btn.title=e.message;btn.disabled=false;return}
+      draw()};
+    t.append(sp,lg,btn);
+    const b=document.createElement('div');b.className='wb';
+    const ax=document.createElement('span');ax.className='wax';ax.innerHTML=`<b>${useAI?10:max.toFixed(1)}</b><em>${$t('wchart.y')}</em><b>0</b>`;b.append(ax);
+    for(const m of shown){const i=document.createElement('i'),pa=Math.round(m.a/m.t*100);i.style.height=`${Math.max(18,Math.round(m.imp/max*100))}%`;
+      i.style.flex=String(m.t);i.style.background=`linear-gradient(90deg,var(--add) ${pa}%,var(--del) 0)`;if(m.other)i.style.opacity='.55';
+      i.textContent=`${m.other?m.d:m.d.split('/').slice(-2).join('/')+'/'} ${pct(m.t)}%`;
+      i.title=`${m.d} · +${m.a} −${m.x} · ${pct(m.t)}% · ${$t('wchart.y')} ${m.imp.toFixed(1)}/${useAI?10:max.toFixed(1)}\n`+m.f.slice(0,5).map(f=>`  ${PATHOF[f.k]||f.k}  +${f.a} −${f.x}`).join('\n')+(m.f.length>5?`\n  … +${m.f.length-5}`:'');
+      i.onmouseenter=()=>light(m,true);i.onmouseleave=()=>light(m,false);
+      i.onclick=()=>mapCtrl.show?.(m.f.slice(0,40).map(f=>f.k),0);b.append(i)}
+    el.append(t,b)}
+  draw()})();
 
 ;ctxT.onclick=()=>thread.classList.toggle('nc');

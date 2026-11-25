@@ -271,7 +271,16 @@ const T = {
 
   // ---- map (React Flow)
   'map.root': ['raíz', 'root'],
-  'wchart.title': ['Dónde está el peso del PR · líneas cambiadas por módulo · {m} módulos · {n} archivos · {t} líneas', 'Where the PR weighs · changed lines per module · {m} modules · {n} files · {t} lines'],
+  'wchart.title': ['Peso del PR · {m} módulos · {n} archivos · {t} líneas', 'PR weight · {m} modules · {n} files · {t} lines'],
+  'wchart.y': ['importancia', 'importance'],
+  'wchart.legend': ['ancho = líneas cambiadas (verde +, rojo −) · alto = importancia', 'width = changed lines (green +, red −) · height = importance'],
+  'wchart.byHeur': ['heurística de riesgo', 'risk heuristic'],
+  'wchart.byAI': ['según IA', 'by AI'],
+  'wchart.useAI': ['Importancia con IA', 'Importance with AI'],
+  'wchart.useHeur': ['Volver a heurística', 'Back to heuristic'],
+  'wchart.thinking': ['Analizando…', 'Analyzing…'],
+  'wchart.aiErr': ['Error de IA, reintentar', 'AI error, retry'],
+  'wchart.prompt': ['Puntuá la importancia semántica de cada módulo de este PR del 0 al 10: cuánto impacta en el comportamiento, la seguridad, los datos o los contratos públicos (los docs, tests, assets y demos valen poco). Respondé SOLO un objeto JSON {"ruta del módulo": puntaje} con exactamente las rutas listadas.', 'Score the semantic importance of each module in this PR from 0 to 10: how much it affects behaviour, security, data or public contracts (docs, tests, assets and demos are worth little). Reply ONLY with a JSON object {"module path": score} with exactly the listed paths.'],
   'wchart.others': ['+{n} otros', '+{n} more'],
   'map.missing': ['Falta compilar el mapa: npm run build', 'The map is not built yet: run npm run build'],
   'map.lvl.0': ['Módulos', 'Modules'],

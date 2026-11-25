@@ -9,6 +9,7 @@
   --ok-bg:#122016;--bad-bg:#2a1210;--warn-bg:#2a2412;
   --r:9px;--r2:12px;--r3:16px;--card:linear-gradient(180deg,#0f0f0f,#090909);
   --shadow:inset 0 1px 0 #ffffff09,0 12px 32px #00000059;--float:0 10px 30px #000000a6;
+  --inp:#090909;--sur:#0e0e0e;--sur2:#0f0f0f;--line:#121211;--acc2:#16202e;--hov:#1a2029;--btn2:#1c2330;--sel:#1f2e47;--chgbg:#2a2214;
   --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
@@ -20,7 +21,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
 .list.enter>*{animation:fade .2s ease both}
 .skrow{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--bd)}
 .skrow>div{flex:1;display:flex;flex-direction:column;gap:8px}
-.sk{border-radius:6px;background:linear-gradient(90deg,#121211 30%,#1b1b1a 50%,#121211 70%) 0 0/300% 100%;animation:shimmer 1.6s linear infinite}
+.sk{border-radius:6px;background:linear-gradient(90deg,var(--line) 30%,#1b1b1a 50%,var(--line) 70%) 0 0/300% 100%;animation:shimmer 1.6s linear infinite}
 .sk.av{width:32px;height:32px;border-radius:8px;flex:none}.sk.l1{height:12px;width:55%}.sk.l2{height:9px;width:80%}
 
 /* ---- controls ---- */
@@ -45,7 +46,7 @@ button:active:not(:disabled){transform:none}
 .ah #stT,.ah #rvT,.ah #jrT{background:none!important;border-color:transparent;color:var(--mut)}.ah #stT:hover,.ah #rvT:hover,.ah #jrT:hover{background:var(--track)!important;border-color:var(--bd2);color:var(--tx)}
 .ah #stT.on,.ah #rvT.on,.ah #jrT.on{background:var(--acc-bg)!important;border-color:var(--acc-bd);color:var(--acc-tx)}
 input:focus,select:focus,textarea:focus,#f:focus-within{box-shadow:0 0 0 3px #6aa9ff26}
-input,select,textarea{background:#090909;border-color:var(--bd2);color:var(--tx)}
+input,select,textarea{background:var(--inp);border-color:var(--bd2);color:var(--tx)}
 
 /* ---- tinted chips and dots with a halo ---- */
 .pill,.st,.chip,.chip2,.tchip,.jc{letter-spacing:0}
@@ -70,7 +71,7 @@ h3{background:transparent;color:var(--faint);font-weight:600;font-size:11px;lett
 .card{box-shadow:inset 0 1px 0 #ffffff09}
 .react-flow .card::before{content:none}
 .react-flow .card,.card{background:var(--card);border-radius:10px}
-.react-flow .fold{background:#0a0a0a;border-radius:14px}
+.react-flow .fold{background:var(--sur);border-radius:14px}
 .react-flow .fold.mod:hover{border-color:var(--faint)}
 #chat .m{animation:none;box-shadow:none;border-radius:var(--r2)}
 #chat .u{background:var(--acc-bg);border:1px solid var(--acc-bd)}
@@ -89,14 +90,14 @@ h3{background:transparent;color:var(--faint);font-weight:600;font-size:11px;lett
 #top_ .setb{margin-left:auto;font-size:12px;padding:2px 10px;cursor:pointer}
 #conn{width:min(720px,94vw);height:min(640px,88vh);background:var(--pan);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:0;box-shadow:0 24px 60px #000a}#conn::backdrop{background:#000a;backdrop-filter:blur(2px)}
 #conn[open]{display:flex;flex-direction:column}#connBody{flex:1;overflow:auto}
-#conn button,#conn select,#conn input{font:inherit;color:var(--tx)}#conn select{background:#090909;border:1px solid var(--bd);border-radius:8px;padding:5px 8px}
+#conn button,#conn select,#conn input{font:inherit;color:var(--tx)}#conn select{background:var(--inp);border:1px solid var(--bd);border-radius:8px;padding:5px 8px}
 #conn .chead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--bd)}#stabs{margin-right:auto}
-#conn .tabs{display:flex;gap:2px;padding:3px;background:#090909;border:1px solid var(--bd);border-radius:9px}
-#conn .tab{background:#1c2330;border:1px solid var(--bd);border-radius:7px;padding:5px 12px;cursor:pointer}#conn .tabs .tab{border-color:transparent;background:transparent;color:var(--mut)}#conn .tabs .tab.on{background:#1f2e47;color:var(--lnk)}
-#conn .go{background:linear-gradient(#2c4c80,#16202e);border:0;border-radius:7px;padding:5px 14px;cursor:pointer;color:#fff}
-#conn .note{margin:12px;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:#0e0e0e;line-height:1.5}#conn .mut{color:var(--mut)}#conn .err{color:var(--del)}
-#conn .cn{padding:12px 16px;border-bottom:1px solid #121211}#conn .cn .top{display:flex;gap:8px;align-items:center}#conn .cn .top b{flex:1}#conn .cn .acts{display:flex;gap:6px;margin-top:8px;align-items:center}
-#conn .cn input{flex:1;min-width:0;background:#090909;border:1px solid var(--bd);border-radius:8px;padding:6px 10px}#conn .cn code{word-break:break-all}
+#conn .tabs{display:flex;gap:2px;padding:3px;background:var(--inp);border:1px solid var(--bd);border-radius:9px}
+#conn .tab{background:var(--btn2);border:1px solid var(--bd);border-radius:7px;padding:5px 12px;cursor:pointer}#conn .tabs .tab{border-color:transparent;background:transparent;color:var(--mut)}#conn .tabs .tab.on{background:var(--sel);color:var(--lnk)}
+#conn .go{background:linear-gradient(#2c4c80,var(--acc2));border:0;border-radius:7px;padding:5px 14px;cursor:pointer;color:#fff}
+#conn .note{margin:12px;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--sur);line-height:1.5}#conn .mut{color:var(--mut)}#conn .err{color:var(--del)}
+#conn .cn{padding:12px 16px;border-bottom:1px solid var(--line)}#conn .cn .top{display:flex;gap:8px;align-items:center}#conn .cn .top b{flex:1}#conn .cn .acts{display:flex;gap:6px;margin-top:8px;align-items:center}
+#conn .cn input{flex:1;min-width:0;background:var(--inp);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}#conn .cn code{word-break:break-all}
 #conn .st{font-size:11px;padding:0 8px;float:none}
 
 /* side-panel handles: the global button hover/active rules reset `transform`, which made the centred handle jump on hover and click.
@@ -114,7 +115,7 @@ h3{background:transparent;color:var(--faint);font-weight:600;font-size:11px;lett
 .utbl{overflow:auto;max-height:320px;margin-top:8px;border:1px solid var(--bd);border-radius:var(--r)}
 .utbl table{width:100%;border-collapse:collapse;font-size:12px}
 .utbl th{position:sticky;top:0;background:var(--pan);color:var(--mut);font-weight:500;text-align:left}
-.utbl th,.utbl td{padding:6px 10px;border-bottom:1px solid #121211;white-space:nowrap}
+.utbl th,.utbl td{padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .utbl .n{text-align:right;font-family:var(--mono)}.utbl .ell{max-width:220px;overflow:hidden;text-overflow:ellipsis}
 .utbl tbody tr:hover{background:var(--track)}
 @media (max-width:560px){.ubars .k{width:90px}}
@@ -152,3 +153,97 @@ h3{background:transparent;color:var(--faint);font-weight:600;font-size:11px;lett
 .mdx a{color:#4f8cff}
 #ctx .mdx :is(h3,h4){text-transform:none;letter-spacing:0;color:inherit;font-size:1.05em;margin:1.1em 0 .4em}#ctx .mdx>:first-child{margin-top:0}
 #ctx .mdx p{margin:0 0 .7em}
+
+/* ---- file tree: tighter rows, status bar on the left edge, guide on hover ---- */
+#tree{padding:6px}
+#tree div{position:relative;padding-top:4px;padding-bottom:4px;border-radius:6px;line-height:16px;transition:background-color .12s,color .12s}
+#tree .d{color:var(--tx);font-weight:600;margin-top:4px;opacity:.85}
+#tree .d:hover{opacity:1}
+#tree .f.n{color:var(--faint)}
+#tree .f.c::before,#tree .f.l::before{content:"";position:absolute;left:calc(var(--i,0px) + 12px);top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+#tree .f:hover{background:var(--track);color:var(--tx)}
+#tree .f.sel,#tree .f.on{background:var(--acc-bg);color:var(--acc-tx)}
+#tsearch{padding:8px}#tsearch input{padding:6px 10px;border-radius:8px}
+#tmeta{padding:6px 12px;font-size:11px}#tmeta a{color:var(--acc-tx);text-decoration:none}#tmeta a:hover{color:var(--tx)}
+#legend{gap:12px;font-size:11px;padding:10px 12px}#legend i{border-radius:50%;width:7px;height:7px}
+
+/* ---- right panel: clearer hierarchy, airy cards, pill chips ---- */
+aside.r h3.ah{padding:12px 14px;color:var(--tx);font-size:11px}
+#ctx{background:transparent;padding:12px 14px}
+.sum{padding:12px 14px;margin-bottom:12px}
+.sum p{line-height:1.6;color:var(--tx)}
+#ctx h4{margin:14px 0 6px;font-size:10.5px;color:var(--faint)}
+.chips{gap:6px;margin:6px 0 10px}
+.chip2,.sg{border-radius:999px;padding:2px 10px;line-height:18px}
+.chip2{background:#f1a33c14;border-color:#f1a33c55}
+.sg{border-style:solid;border-color:var(--acc-bd);background:transparent;color:var(--acc-tx)}.sg:hover{background:var(--acc-bg)}
+.dbtn{padding:8px;border-radius:var(--r);margin:4px 0 12px}
+#ctx input.add{padding:7px 10px;border-radius:8px;border-color:var(--bd2)}
+#ctx .fn{border-left-width:2px;padding:4px 0 4px 10px;margin:8px 0}
+.m{padding:9px 12px;line-height:1.5}
+#f{margin:10px 12px 12px}#f input{padding:11px 12px}
+
+/* weight chart: x = lines changed (width), y = semantic importance (height) */
+#wchart{height:78px}
+#wchart .wb{height:52px;align-items:flex-end;overflow:visible;background:repeating-linear-gradient(0deg,var(--bd) 0 1px,transparent 1px 13px);border-radius:0}
+#wchart .wb>i{border-radius:4px 4px 0 0;line-height:16px;padding-top:2px;transition:height .3s,filter .15s}
+#wchart .wb>i:hover{filter:brightness(1.2)}
+#wchart .wy{flex:none;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;padding-left:2px}
+#wchart{height:92px}
+#wchart .wt{display:flex;align-items:center;gap:10px}
+#wchart .wt>span:first-child{color:var(--tx);font-weight:600}
+#wchart .wlg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--faint)}#wchart .wlg b{color:var(--acc-tx);font-weight:500}
+#wchart .wsw{display:inline-block;width:14px;height:8px;margin-right:5px;border-radius:2px;background:linear-gradient(90deg,var(--add) 60%,var(--del) 0)}
+#wchart .wai{flex:none;font-size:10.5px;padding:1px 9px;border-radius:999px;background:var(--acc-bg);color:var(--acc-tx);border:1px solid var(--acc-bd);cursor:pointer}
+#wchart .wai:disabled{opacity:.6;cursor:progress}
+#wchart .wy{display:none}
+#wchart .wax{flex:none;width:58px;display:flex;flex-direction:column;justify-content:space-between;align-self:stretch;text-align:right;padding-right:6px;font:9px var(--mono);color:var(--faint)}
+#wchart .wax em{font-style:normal;text-transform:uppercase;letter-spacing:.06em;font-family:var(--sans)}
+#wchart .wb{height:60px}
+#rf.whl .react-flow__node:not(.wh){opacity:.25;transition:opacity .2s}
+#rf .react-flow__node.wh>div{box-shadow:0 0 0 2px var(--chg),0 0 18px #f1a33c66}
+
+/* ---- light theme: its own palette (replaces the old whole-page color inversion) ---- */
+:root[data-theme=light]{--bg:#f5f5f2;--pan:#ffffff;--bd:#e7e6e1;--bd2:#d8d7d1;--tx:#1b1b19;--mut:#66655f;--faint:#9a988f;
+  --lnk:#2f6fdb;--chg:#c06f0c;--add:#1c9447;--del:#d33a2c;--warn:#9a7000;
+  --track:#f0efeb;--seg:#ffffff;--btn:#f4f3ef;--btn-h:#eae9e4;
+  --acc-bg:#2f6fdb14;--acc-bd:#2f6fdb55;--acc-tx:#1f57b8;
+  --ok-bg:#e5f5ea;--bad-bg:#fdeae7;--warn-bg:#fbf3dc;
+  --card:linear-gradient(180deg,#ffffff,#fafaf8);--shadow:inset 0 1px 0 #fff,0 8px 24px #0000000d;--float:0 12px 32px #0000001f;
+  --inp:#ffffff;--sur:#fafaf8;--sur2:#fbfbf9;--line:#efeee9;--acc2:#e6eefc;--hov:#f2f1ed;--btn2:#f4f3ef;--sel:#e2ebfb;--chgbg:#fdf1df}
+:root[data-theme=light] body{background:var(--bg)}
+:root[data-theme=light] header,:root[data-theme=light] footer{background:#ffffffcc}
+:root[data-theme=light] .row.click:hover{background:var(--hov)}
+:root[data-theme=light] .dl.p{background:#e4f6e9}:root[data-theme=light] .dl.m{background:#fde8e6}
+:root[data-theme=light] .hh{background:#eef2f8}:root[data-theme=light] .hk summary{background:#f3f6fb}
+:root[data-theme=light] .u,:root[data-theme=light] .dbtn,:root[data-theme=light] .go{color:var(--acc-tx)}
+:root[data-theme=light] .cl{background:#e9f6ee}:root[data-theme=light] .rd{background:#eaf1fc}
+:root[data-theme=light] .sum{background:var(--card)}
+:root[data-theme=light] .react-flow .tbg,:root[data-theme=light] .lvl{background:#ffffffcc!important}
+:root[data-theme=light] .react-flow .card:hover{box-shadow:0 10px 24px #0000001a}
+:root[data-theme=light] .react-flow .card.sel,:root[data-theme=light] .react-flow .fold.sel{box-shadow:0 0 0 1px var(--lnk),0 0 0 5px #2f6fdb22,0 10px 24px #0000001a}
+:root[data-theme=light] .card.c{background:var(--chgbg)}:root[data-theme=light] .card.l{background:var(--acc2)}
+:root[data-theme=light] #wchart .wb>i{color:#fff}
+.react-flow__background-pattern{fill:var(--bd2)}
+.react-flow__minimap{background:var(--sur)!important}.react-flow__minimap-mask{fill:color-mix(in srgb,var(--bg) 72%,transparent)}
+.react-flow{--xy-background-color:transparent!important}.react-flow__background{background:transparent!important}
+
+/* ---- dark theme: layered charcoal instead of near-pure black, so canvas, panels and cards separate like in light ---- */
+:root:not([data-theme=light]){--bg:#0b0b0d;--pan:#131316;--bd:#242428;--bd2:#303036;--tx:#ecebe7;--mut:#9a9891;--faint:#6d6b65;
+  --track:#1a1a1e;--seg:#26262b;--btn:#1b1b1f;--btn-h:#26262b;
+  --card:linear-gradient(180deg,#1a1a1e,#151518);--shadow:inset 0 1px 0 #ffffff0d,0 10px 28px #00000066;
+  --inp:#0f0f12;--sur:#141417;--sur2:#17171a;--line:#1e1e22;--hov:#1d1f25;--btn2:#1d2230;--sel:#1e2b42;--chgbg:#2b2316;--acc2:#18233a}
+:root:not([data-theme=light]) body{background:var(--bg)}
+:root:not([data-theme=light]) header,:root:not([data-theme=light]) footer{background:#131316cc}
+:root:not([data-theme=light]) .react-flow .card{border-color:var(--bd2)}
+:root:not([data-theme=light]) #map{background:radial-gradient(#26262b 1px,transparent 1px) 0 0/22px 22px}
+/* softer chart colors in dark: the neon green glared next to everything else */
+:root:not([data-theme=light]) #wchart{--add:#2f9a5c;--del:#c9483d}
+:root:not([data-theme=light]) #wchart .wb>i{color:#fff}
+:root:not([data-theme=light]) .react-flow .card{background:linear-gradient(180deg,#24242a,#1e1e23);box-shadow:inset 0 1px 0 #ffffff12,0 2px 6px #0006}
+:root:not([data-theme=light]) .react-flow .fold.mod{background:linear-gradient(180deg,#1d1d22,#18181c)}
+.dl.p{box-shadow:inset 2px 0 var(--add)}.dl.m{box-shadow:inset 2px 0 var(--del)}
+:root:not([data-theme=light]) .dl.p{background:#5fe08a14}:root:not([data-theme=light]) .dl.m{background:#ff6b5b17}
+:root:not([data-theme=light]) .hh{background:#1a1d24}:root:not([data-theme=light]) .hk summary{background:#161920}
+:root[data-theme=light] #conn .go{color:var(--acc-tx)}
+:root:not([data-theme=light]) body:has(>header){background:radial-gradient(1000px 380px at 8% -10%,#16243d 0,transparent 70%),radial-gradient(800px 300px at 100% 110%,#1c1630 0,transparent 70%) var(--bg)}

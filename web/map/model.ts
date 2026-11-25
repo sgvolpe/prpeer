@@ -139,12 +139,14 @@ export function buildFlow(data: MapData, v: View) {
     if (!v.expanded.has(n.path)) return { w: BW, h: BH, open: false, cw: CW, cards: [], kids: [] };
     // cards go in columns (up to 3, 8 per column): a folder with 100 files can't be a tower
     const files = n.files.filter(f => !v.hidden(f.key)), cols = Math.min(3, Math.max(1, Math.ceil(files.length / COL_FILES))), per = Math.ceil(files.length / cols);
-    const cw = Math.max(CW, Math.floor(((v.cardW ?? 0) - (cols - 1) * GAP) / cols)); // zoomed in: the columns share the visible width
+    const user = forceW ?? v.widths?.[n.path];
+    // the width the user dragged wins at every zoom (wider or narrower); otherwise, zoomed in, the columns share the visible width
+    const row = user !== undefined ? user - 2 * PAD : v.cardW ?? 0;
+    const cw = Math.max(CW, Math.floor((row - (cols - 1) * GAP) / cols));
     const ys = Array(cols).fill(HEAD) as number[];
     const cards = files.map((f, i) => { const col = Math.floor(i / per), h = cardHeight(f, v.open === f.key, shownLines(f)), c = { key: f.key, x: PAD + col * (cw + GAP), y: ys[col], h }; ys[col] += h + GAP; return c; });
     let y = Math.max(...ys);
     const kids = related(n.kids.filter(visible).map(k => ({ n: k, lay: layout(k), x: 0, y: 0 })));
-    const user = forceW ?? v.widths?.[n.path];
     // a single open subfolder takes the whole width given to the container: that way its own subfolders spread over more columns
     if (user !== undefined && kids.length === 1 && kids[0].lay.open) kids[0].lay = layout(kids[0].n, user - 2 * PAD);
     let w = Math.max(BW, cols * (cw + GAP) - GAP + 2 * PAD), h = y + (kids.length ? 0 : PAD - GAP);
