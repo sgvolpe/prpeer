@@ -10,6 +10,8 @@ import { EMPTY_TREE } from './analyze.ts';
 import { withLang } from './i18n.ts';
 import type { Config } from './llm.ts';
 
+process.env.PRPEER_HOME = mkdtempSync(join(tmpdir(), 'prpeer-app-')); // sessions, usage and settings stay out of the real home
+
 const g = (dir: string, ...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
 
@@ -89,6 +91,14 @@ test('local: discovered repos, branches, commits, opening PR/commit/root commit,
     assert.throws(() => api.file('nope', 'a.txt'), /unknown session/);
     assert.throws(() => api.search('nube', 'test', 'prs', 'open', '', 1), /unknown source/);
   });
+  // a closed session reopens under the same link, also in a new app (a restart); a sid it never opened does not
+  assert.equal(await api.reopen!(sid), true);
+  assert.deepEqual(names(api.page(sid)), ['a.txt', 'b.txt']);
+  const again = createApp(cfg({ repoDirs: [parent], cacheDir: tmp('cache-') }));
+  assert.equal(await again.api.reopen!(sid), true);
+  assert.deepEqual(names(again.api.page(sid)), ['a.txt', 'b.txt']);
+  assert.equal(await again.api.reopen!('deadbeef'), false);
+  again.shutdown();
   app.shutdown();
   assert.equal(g(d, 'worktree', 'list').split('\n').length, 1); // no quedan worktrees de prpeer
 });
@@ -101,10 +111,14 @@ test('github (simulated API + clone from a local "remote" repo): list, filter, c
   g(bare, 'update-ref', 'refs/pull/2/head', work.featSha);
 
   const pr = (n: number, state: string, merged: string | null) => ({ number: n, title: `PR ${n}`, user: { login: 'u' }, state, merged_at: merged, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', base: { ref: 'main' }, head: { ref: 'feat' } });
+  const posted: unknown[] = [];
   const api = createServer((req, res) => {
     const u = new URL(req.url!, 'http://x'), p = u.pathname;
     const out = (o: unknown, s = 200) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.headers.authorization !== 'Bearer test-token') return out({ message: 'Bad credentials' }, 401);
+    if (req.method === 'POST' && p === '/repos/o/demo/pulls/1/comments') { let s = ''; req.on('data', c => (s += c)); req.on('end', () => { posted.push(JSON.parse(s)); out({ html_url: 'https://github.com/o/demo/pull/1#discussion_r1' }, 201); }); return; }
+    if (p === `/repos/o/demo/commits/${work.featSha}/check-runs`) return out({ check_runs: [{ id: 7, name: 'lint', status: 'completed', conclusion: 'failure', output: { annotations_count: 1 } }, { id: 8, name: 'build', status: 'completed', conclusion: 'success', output: { annotations_count: 3 } }] });
+    if (p === '/repos/o/demo/check-runs/7/annotations') return out([{ path: 'a.txt', start_line: 2, end_line: 2, annotation_level: 'failure', message: 'bad line', title: 'E1' }]);
     if (p === '/user') return out({ login: 'o' });
     if (p === '/user/repos') return out(u.searchParams.get('page') === '1' ? Array.from({ length: 100 }, (_, i) => ({ full_name: `o/r${i}`, description: null, pushed_at: '2026-01-01T00:00:00Z', private: false })) : [{ full_name: 'o/demo', description: 'demo', pushed_at: '2026-01-02T00:00:00Z', private: true }]);
     if (p === '/repos/o/demo/pulls' && u.searchParams.get('page') === '2') return out([]);
@@ -151,6 +165,20 @@ test('github (simulated API + clone from a local "remote" repo): list, filter, c
   assert.equal(p2.base.ref, work.baseSha); // merged: against the base it had
   assert.deepEqual(names(p2), ['a.txt', 'b.txt']);
   assert.deepEqual(names(await open('commit', work.featSha)), ['a.txt', 'b.txt']);
+
+  // comments: only on a changed line of a PR, and the text reaches GitHub as the user wrote it
+  const s1 = p1 as unknown as { sid: string; canComment: boolean };
+  assert.equal(s1.canComment, true);
+  assert.deepEqual(await a.comment!(s1.sid, { path: 'a.txt', line: 2, side: 'RIGHT', text: 'why?' }), { url: 'https://github.com/o/demo/pull/1#discussion_r1' });
+  assert.deepEqual(posted, [{ body: 'why?', commit_id: work.featSha, path: 'a.txt', line: 2, side: 'RIGHT' }]);
+  for (const bad of [{ path: 'a.txt', line: 3, side: 'RIGHT', text: 'x' }, { path: 'a.txt', line: 2, side: 'LEFT', text: ' ' }, { path: 'zzz', line: 2, side: 'RIGHT', text: 'x' }, { path: 'a.txt', line: 2, side: 'UP', text: 'x' }])
+    await assert.rejects(a.comment!(s1.sid, bad), /pedido inválido/, JSON.stringify(bad));
+  assert.equal(posted.length, 1);
+  const c = (await open('commit', work.featSha)) as unknown as { sid: string; canComment: boolean };
+  assert.equal(c.canComment, false);
+  await assert.rejects(a.comment!(c.sid, { path: 'a.txt', line: 2, side: 'RIGHT', text: 'x' }), /solo se puede comentar/);
+  // meta: the failed check's annotations point at file and line; the passing one's are not fetched
+  assert.deepEqual(((await a.meta(s1.sid)) as { annotations: unknown[] }).annotations, [{ check: 'lint', path: 'a.txt', line: 2, end: 2, level: 'failure', message: 'E1: bad line' }]);
 
   app.shutdown();
   api.close();

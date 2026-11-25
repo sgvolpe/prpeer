@@ -157,13 +157,14 @@ async function* openaiStream(p: ProviderCfg, r: Req): AsyncGenerator<string> {
 }
 
 const cliCmd = (p: ProviderCfg) => p.command ?? 'claude';
-const cliInstalled = (p: ProviderCfg) => process.platform !== 'win32' && spawnSync(cliCmd(p), ['--version'], { timeout: 5000, stdio: 'ignore' }).status === 0;
+// On Windows only a real claude.exe counts (official installer or winget): Node refuses to spawn the npm claude.cmd shim
+// without a shell, and a shell would parse the model name that comes from the browser.
+const cliInstalled = (p: ProviderCfg) => spawnSync(cliCmd(p), ['--version'], { timeout: 5000, stdio: 'ignore' }).status === 0;
 
 // Claude Code in non-interactive mode. Isolated on purpose: no tools, no MCP, no skills, no user settings
 // (no hooks or CLAUDE.md) and in an empty folder, because the PR diff is untrusted text and must not be able to run anything.
 // The prompt goes through stdin (the command-line length limit is not enough for the context).
 async function* cliStream(p: ProviderCfg, r: Req): AsyncGenerator<string> {
-  if (process.platform === 'win32') throw new Error(t('llm.cliWindows'));
   const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose', '--model', r.model,
     ...(r.effort ? ['--effort', r.effort] : []),
     '--system-prompt', t('llm.cliSystem'),

@@ -122,3 +122,46 @@ test('whole-PR summary sends shorter sections than an explicit level-1 request (
   assert.doesNotMatch(sum, /line 8\b/);
   assert.match(buildContext(big, ['a/x.py'], 1), /line 14\b/);
 });
+
+test('pruneAnswers: deletes answers unused for longer than the limit and keeps the recent ones', async () => {
+  const { pruneAnswers } = await import('./ask.ts');
+  const { mkdirSync, writeFileSync, utimesSync, readdirSync } = await import('node:fs');
+  const dir = join(process.env.PRPEER_HOME!, 'answers');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'old.md'), 'x'); writeFileSync(join(dir, 'new.md'), 'y');
+  const long = new Date(Date.now() - 90 * 864e5);
+  utimesSync(join(dir, 'old.md'), long, long);
+  pruneAnswers(60);
+  assert.deepEqual(readdirSync(dir).filter(f => f === 'old.md' || f === 'new.md'), ['new.md']);
+});
+
+test('big PR: the files that do not fit are summarized in batches that travel with the question, and cached', async () => {
+  const bodies: string[] = [];
+  const srv = createServer((req, res) => {
+    let s = ''; req.on('data', c => (s += c));
+    req.on('end', () => {
+      bodies.push(s);
+      const digest = s.includes('Resumí estos archivos');
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: digest ? `DIGEST${bodies.length}` : 'final' } }], usage: { prompt_tokens: 10, completion_tokens: 1 } })}\n\n`);
+      res.end('data: [DONE]\n\n');
+    });
+  });
+  await new Promise<void>(ok => srv.listen(0, '127.0.0.1', ok));
+  const c = { providers: [{ id: 'o', type: 'openai-compat' as const, baseUrl: `http://127.0.0.1:${(srv.address() as { port: number }).port}` }] };
+  const big: Payload = { ...P, head: 'bighead', files: Array.from({ length: 150 }, (_, i) => ({ ...P.files[0], path: `f${i}.py`, sections: Array.from({ length: 5 }, (_, j) => sec(`s${j}`, 400)) })) };
+  const u = { in: 0, out: 0, cr: 0, cw: 0 };
+  const run = async () => { let s = ''; for await (const x of ask(c, big, { task: 'story', provider: 'o', model: 'm' }, undefined, '', u)) s += x; return s; };
+  try {
+    assert.equal(await run(), 'final');
+    const digests = bodies.filter(b => b.includes('Resumí estos archivos'));
+    assert.ok(digests.length >= 1 && digests.length <= 6, `${digests.length} batches`);
+    assert.ok(digests.some(b => b.includes('f149.py'))); // the last file reached some batch
+    const final = bodies.at(-1)!;
+    assert.ok(final.includes('Resumen de los archivos que no entraron') && final.includes('DIGEST1'));
+    assert.equal(u.in, 10 * bodies.length); // the batches' tokens are counted too
+    const n = bodies.length;
+    bodies.length = 0; await run();
+    assert.equal(bodies.length, 0, 'second time: answer from the cache'); assert.ok(n > 1);
+  } finally { srv.close(); }
+});

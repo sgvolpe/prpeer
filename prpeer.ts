@@ -4,6 +4,7 @@
 //            [--serve] [--port N] [--config file] [--no-open] [-v|--verbose] [--debug]       (with no PR and --serve: opens the home screen)
 import { execFileSync, spawn } from 'node:child_process';
 import { analyze } from './analyze.ts';
+import { banner } from './banner.ts';
 import { createApp } from './app.ts';
 import { setDefaultLang } from './i18n.ts';
 import { loadConfig } from './llm.ts';
@@ -130,25 +131,3 @@ try {
   if (!serving) analysis?.cleanup();
 }
 
-// Startup header: the logo (two eyes peeking over the orange bar) and a random quip. Plain ASCII so any terminal shows it.
-function banner() {
-  const o = process.stdout.isTTY && !process.env.NO_COLOR ? (s: string) => `\x1b[38;5;214m${s}\x1b[0m` : (s: string) => s;
-  const quips = [
-    'Peering at your diff so you do not have to squint.',
-    'Reading 2,000 lines so you can pretend you did.',
-    'LGTM is not a review. Let us fix that.',
-    'Somewhere a file did not change and is about to break. Let us find it.',
-    'Now with 100% fewer "looks fine to me".',
-    'The duck has seen things. Mostly unhandled exceptions.',
-  ];
-  console.log([
-    String.raw`     .-----.   .-----.`,
-    String.raw`    /  .-.  \ /  .-.  \ `,
-    String.raw`   |  ( o )  |  ( o )  |`,
-    o(String.raw`  .---------------------.`),
-    o(String.raw`  |  ===========        |`) + '   P R   P E E R',
-    o(String.raw`  |  ======             |`) + '   ' + quips[Math.floor(Math.random() * quips.length)],
-    o(String.raw`  '---------------------'`),
-    '',
-  ].join('\n'));
-}

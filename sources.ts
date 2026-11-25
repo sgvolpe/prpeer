@@ -21,7 +21,9 @@ export type SourcesCfg = { repoDirs?: string[]; repos?: Record<string, string>; 
 export type Discussion = { body?: string; branch?: string; items: { kind: 'comment' | 'review' | 'inline'; author: string; text: string; path?: string; start?: number; line?: number; state?: string }[] };
 
 // Header data of a PR: who, when, CI checks, comments and whether it merges cleanly.
-export type PrMeta = { id?: string; url?: string; author?: string; created?: string; closed?: string; approvals?: number; changesRequested?: number; unresolved?: number; state: string; draft?: boolean; comments: number; conflicts?: boolean; checks: { name: string; state: 'ok' | 'fail' | 'wip' | 'skip' }[] };
+export type PrMeta = { id?: string; url?: string; author?: string; created?: string; closed?: string; approvals?: number; changesRequested?: number; unresolved?: number; state: string; draft?: boolean; comments: number; conflicts?: boolean; checks: { name: string; state: 'ok' | 'fail' | 'wip' | 'skip' }[];
+  annotations?: { check: string; path: string; line: number; end: number; level: string; message: string }[] }; // where the failed checks point (file and lines)
+export type LineComment = { path: string; line: number; side: 'LEFT' | 'RIGHT'; body: string; commit: string };
 
 // Inline comments that start with an intent id (`#i-retry — ...`, see GUIA-PR-PEER.md), grouped by intent.
 export function intents(d: Discussion | null): Map<string, { where: string; text: string }[]> {
@@ -40,6 +42,7 @@ export interface Source {
   meta?(repo: string, id: string): Promise<PrMeta>;
   prForCommit?(repo: string, sha: string): Promise<string | undefined>; // the PR that contains the commit, so a commit session also gets the strip
   discussion?(repo: string, id: string): Promise<Discussion>;
+  comment?(repo: string, id: string, c: LineComment): Promise<{ url?: string }>; // the only write: called only when the user sends a comment from the UI
   readonly label: string; // may be a getter: it is localized per request
   status(): Promise<{ ready: boolean; hint?: string }>;
   repos(): Promise<RepoRef[]>;
@@ -186,10 +189,11 @@ const ghPR = (p: GhPR) => ({ id: String(p.number), title: p.title, author: p.use
 
 export function githubSource(cfg: SourcesCfg['github'] = {}): Source {
   const api = (cfg.apiUrl ?? 'https://api.github.com').replace(/\/$/, '');
-  const get = async <T>(path: string): Promise<T> => {
+  // post: sends it as a JSON POST (only `comment` does, after the user confirmed it)
+  const get = async <T>(path: string, post?: unknown): Promise<T> => {
     const token = githubToken(cfg.tokenEnv);
     if (!token) throw new Error(t('src.ghNoCreds'));
-    const res = await fetch(api + path, { headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'prpeer', 'x-github-api-version': '2022-11-28' } });
+    const res = await fetch(api + path, { ...(post === undefined ? {} : { method: 'POST', body: JSON.stringify(post) }), headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'prpeer', 'x-github-api-version': '2022-11-28' } });
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${((await res.json().catch(() => ({}))) as { message?: string }).message ?? res.statusText}`);
     return res.json() as Promise<T>;
   };
@@ -214,6 +218,10 @@ export function githubSource(cfg: SourcesCfg['github'] = {}): Source {
         ],
       };
     },
+    comment: async (repo, id, c) => {
+      const r = await get<{ html_url?: string }>(`/repos/${repo}/pulls/${id}/comments`, { body: c.body, commit_id: c.commit, path: c.path, line: c.line, side: c.side });
+      return { url: r.html_url };
+    },
     prForCommit: async (repo, sha) => { const r = await get<{ number: number }[]>(`/repos/${repo}/commits/${sha}/pulls`).catch(() => []); return r[0] ? String(r[0].number) : undefined; },
     meta: async (repo, id) => {
       const pr = await get<{ html_url?: string; closed_at: string | null; user?: { login: string } | null; created_at: string; state: string; merged_at: string | null; draft?: boolean; comments: number; review_comments: number; mergeable_state?: string; head: { sha: string } }>(`/repos/${repo}/pulls/${id}`);
@@ -221,7 +229,7 @@ export function githubSource(cfg: SourcesCfg['github'] = {}): Source {
       // Latest review per reviewer decides approvals; unresolved threads only exist in GraphQL (a failure just hides that chip).
       const [owner, name] = repo.split('/'), token = githubToken(cfg.tokenEnv);
       const [runs, sts, revs, unresolved] = await Promise.all([
-        get<{ check_runs: { name: string; status: string; conclusion: string | null }[] }>(`/repos/${repo}/commits/${pr.head.sha}/check-runs?per_page=100`).then(r => r.check_runs).catch(() => []),
+        get<{ check_runs: { id: number; name: string; status: string; conclusion: string | null; output?: { annotations_count?: number } }[] }>(`/repos/${repo}/commits/${pr.head.sha}/check-runs?per_page=100`).then(r => r.check_runs).catch(() => []),
         get<{ statuses: { context: string; state: string }[] }>(`/repos/${repo}/commits/${pr.head.sha}/status`).then(r => r.statuses).catch(() => []),
         get<{ user?: { login: string } | null; state: string }[]>(`/repos/${repo}/pulls/${id}/reviews?per_page=100`).catch(() => []),
         fetch(api.replace(/\/v3$/, '') + '/graphql', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'user-agent': 'prpeer' }, body: JSON.stringify({ query: 'query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p){reviewThreads(first:100){nodes{isResolved}}}}}', variables: { o: owner, n: name, p: Number(id) } }) })
@@ -234,7 +242,12 @@ export function githubSource(cfg: SourcesCfg['github'] = {}): Source {
         ...runs.map(r => ({ name: r.name, state: r.status !== 'completed' ? 'wip' as const : r.conclusion === 'success' ? 'ok' as const : r.conclusion === 'skipped' || r.conclusion === 'neutral' ? 'skip' as const : 'fail' as const })),
         ...sts.map(x => ({ name: x.context, state: x.state === 'success' ? 'ok' as const : x.state === 'pending' ? 'wip' as const : 'fail' as const })),
       ];
-      return { id, url: pr.html_url, approvals: states.filter(s => s === 'APPROVED').length, changesRequested: states.filter(s => s === 'CHANGES_REQUESTED').length, unresolved, closed: pr.merged_at ?? pr.closed_at ?? undefined, author: pr.user?.login, created: pr.created_at, state: pr.merged_at ? 'merged' : pr.state, draft: pr.draft, comments: pr.comments + pr.review_comments, conflicts: pr.mergeable_state === 'dirty' ? true : pr.mergeable_state === 'unknown' ? undefined : false, checks };
+      // failed check runs say where they failed (file and lines): the map marks those cards. At most 10 runs × 50 annotations.
+      type Ann = { path: string; start_line: number; end_line: number; annotation_level: string; message: string; title?: string | null };
+      const failed = runs.filter(r => r.status === 'completed' && !['success', 'skipped', 'neutral'].includes(r.conclusion ?? '') && (r.output?.annotations_count ?? 0) > 0).slice(0, 10);
+      const annotations = (await Promise.all(failed.map(r => get<Ann[]>(`/repos/${repo}/check-runs/${r.id}/annotations?per_page=50`)
+        .then(as => as.map(a => ({ check: r.name, path: a.path, line: a.start_line, end: a.end_line, level: a.annotation_level, message: (a.title ? a.title + ': ' : '') + a.message.slice(0, 1000) }))).catch(() => [])))).flat();
+      return { annotations, id, url: pr.html_url, approvals: states.filter(s => s === 'APPROVED').length, changesRequested: states.filter(s => s === 'CHANGES_REQUESTED').length, unresolved, closed: pr.merged_at ?? pr.closed_at ?? undefined, author: pr.user?.login, created: pr.created_at, state: pr.merged_at ? 'merged' : pr.state, draft: pr.draft, comments: pr.comments + pr.review_comments, conflicts: pr.mergeable_state === 'dirty' ? true : pr.mergeable_state === 'unknown' ? undefined : false, checks };
     },
     status: async () => {
       const off = !!entry('github').off, found = githubCred(cfg.tokenEnv, true), ready = !off && !!found.token;

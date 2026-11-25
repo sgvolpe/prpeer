@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { curLang, t } from './i18n.ts';
 import { stream, type Config, type Msg } from './llm.ts';
-import type { Usage } from './usage.ts';
+import { newUsage, type Usage } from './usage.ts';
 
 type Sec = { name: string; kind: string; doc: string | null; add: number; del: number; first: number; last: number; lines: { k: '+' | '-'; t: string; o?: number; n?: number }[] };
 type PFile = { path: string; oldPath?: string; status: string; add: number; del: number; binary: boolean; doc: string | null; sections: Sec[] };
@@ -32,7 +32,8 @@ export const SUMMARY_CAP = 40_000, SUMMARY_LINES = 8; // whole-PR summary: half 
 const churn = (f: PFile) => f.add + f.del;
 const secChurn = (s: Sec) => s.add + s.del;
 
-export function buildContext(p: Payload, files: string[] | undefined, level: number, levels?: Map<string, number>, cap = CAP, lines = 15): string {
+// dropped: filled with the files that did not fit at all (not even their header)
+export function buildContext(p: Payload, files: string[] | undefined, level: number, levels?: Map<string, number>, cap = CAP, lines = 15, dropped?: string[]): string {
   const out: string[] = [];
   let used = 0, omitted = 0;
   const push = (s: string) => (used + s.length > cap ? (omitted++, false) : (out.push(s), (used += s.length), true));
@@ -54,7 +55,7 @@ export function buildContext(p: Payload, files: string[] | undefined, level: num
   const maxOf = (path: string) => [0, lines, 80][levels?.get(path) ?? level] ?? lines;
   if (sel || level > 0 || levels) {
     for (const f of chosen) {
-      if (!push(t('ai.ctx.fileHead', { path: f.path, status: f.status, add: f.add, del: f.del, old: f.oldPath ? t('ai.ctx.before', { path: f.oldPath }) : '', doc: f.doc ? t('ai.ctx.moduleDoc', { doc: f.doc }) : '', conn: conn(f.path) }))) continue;
+      if (!push(t('ai.ctx.fileHead', { path: f.path, status: f.status, add: f.add, del: f.del, old: f.oldPath ? t('ai.ctx.before', { path: f.oldPath }) : '', doc: f.doc ? t('ai.ctx.moduleDoc', { doc: f.doc }) : '', conn: conn(f.path) }))) { dropped?.push(f.path); continue; }
       if (f.binary) { push(t('ai.ctx.binary')); continue; }
       const secs = [...f.sections].sort((a, b) => secChurn(b) - secChurn(a)), maxLines = maxOf(f.path);
       for (const s of secs) {
@@ -76,7 +77,8 @@ export function buildContext(p: Payload, files: string[] | undefined, level: num
   return out.join('');
 }
 
-export function buildPrompt(cfg: Config, p: Payload, b: AskBody, extra = ''): { system: string; messages: Msg[] } {
+export function buildPrompt(cfg: Config, p: Payload, b: AskBody, extra = ''): { system: string; messages: Msg[]; dropped: string[] } {
+  const dropped: string[] = [];
   const level = b.task === 'story' || (b.task === 'review' && b.tool !== 'security') ? 1 : b.task === 'review' ? 2 : b.level ?? 1;
   const task = {
     review: REVIEW_TOOLS.includes(b.tool as ReviewTool) ? t(`ai.review.${b.tool}`) : '',
@@ -96,20 +98,20 @@ export function buildPrompt(cfg: Config, p: Payload, b: AskBody, extra = ''): { 
     t('ai.untrusted'),
     task,
     // grouping by feature needs to see each file's sections, even when the zoom is at general level
-    t('ai.contextHeader') + (b.task === 'summary' && !files?.length ? buildContext(p, files, Math.max(level, 1), levels, SUMMARY_CAP, SUMMARY_LINES) : buildContext(p, b.task === 'story' || b.task === 'review' ? undefined : files, level, levels)) + extra,
+    t('ai.contextHeader') + (b.task === 'summary' && !files?.length ? buildContext(p, files, Math.max(level, 1), levels, SUMMARY_CAP, SUMMARY_LINES, dropped) : buildContext(p, b.task === 'story' || b.task === 'review' ? undefined : files, level, levels, CAP, 15, dropped)) + extra,
   ].join('\n');
   if (b.task === 'review') {
     if (!REVIEW_TOOLS.includes(b.tool as ReviewTool)) throw new Error(t('ai.err.badReview', { tool: String(b.tool) }));
-    return { system, messages: [{ role: 'user', content: t('ai.msg.review') }] };
+    return { system, messages: [{ role: 'user', content: t('ai.msg.review') }], dropped };
   }
-  if (b.task === 'story') return { system, messages: [{ role: 'user', content: t('ai.msg.story') }] };
+  if (b.task === 'story') return { system, messages: [{ role: 'user', content: t('ai.msg.story') }], dropped };
 
   if (b.task === 'chat') {
     const m = (b.messages ?? []).filter(x => (x.role === 'user' || x.role === 'assistant') && typeof x.content === 'string').slice(-20);
     if (!m.length || m.at(-1)!.role !== 'user') throw new Error(t('ai.err.noQuestion'));
-    return { system, messages: m };
+    return { system, messages: m, dropped };
   }
-  if (b.task === 'summary') return { system, messages: [{ role: 'user', content: t('ai.msg.summary') }] };
+  if (b.task === 'summary') return { system, messages: [{ role: 'user', content: t('ai.msg.summary') }], dropped };
   const tg = b.target;
   if (!tg?.path) throw new Error(t('ai.err.noTarget'));
   const sec = p.files.find(f => f.path === tg.path)?.sections.find(s => s.name === tg.section);
@@ -122,25 +124,71 @@ export function buildPrompt(cfg: Config, p: Payload, b: AskBody, extra = ''): { 
         + (tg.section ? t('ai.explainReq.sectionName', { section: tg.section }) : '') + (tg.line ? t('ai.explainReq.lineNo', { line: tg.line }) : '') + '.'
         + (tg.text ? t('ai.explainReq.lineText', { text: tg.text.slice(0, 400) }) : '') + (code ? t('ai.explainReq.fullSection', { code }) : ''),
     }],
+    dropped,
   };
 }
 
 // summaries and explanations: same request, same answer. Kept on disk so reopening a PR (or restarting prpeer) costs nothing.
-// shortcut: one file per answer, never pruned; add an LRU cleanup if ~/.prpeer/answers grows too much
+// One file per answer. A hit refreshes its date, and once per run the answers nobody used in 60 days are deleted.
 const ansDir = () => join(process.env.PRPEER_HOME ?? join(homedir(), '.prpeer'), 'answers');
+export function pruneAnswers(days = 60) {
+  const old = Date.now() - days * 864e5;
+  try { for (const f of readdirSync(ansDir())) { const p = join(ansDir(), f); if (statSync(p).mtimeMs < old) rmSync(p, { force: true }); } } catch { /* best effort */ }
+}
+let pruned = false;
 const cache = {
-  get: (k: string) => { try { return readFileSync(join(ansDir(), k + '.md'), 'utf8'); } catch { return undefined; } },
-  set: (k: string, v: string) => { try { mkdirSync(ansDir(), { recursive: true }); writeFileSync(join(ansDir(), k + '.md'), v); } catch { /* cache is best effort */ } },
+  get: (k: string) => { try { const p = join(ansDir(), k + '.md'), v = readFileSync(p, 'utf8'); const now = new Date(); utimesSync(p, now, now); return v; } catch { return undefined; } },
+  set: (k: string, v: string) => {
+    if (!pruned) { pruned = true; pruneAnswers(); }
+    try { mkdirSync(ansDir(), { recursive: true }); writeFileSync(join(ansDir(), k + '.md'), v); } catch { /* cache is best effort */ }
+  },
 };
 export async function* ask(cfg: Config, p: Payload, b: AskBody, signal?: AbortSignal, extra = '', usage?: Usage): AsyncGenerator<string> {
   if (!['chat', 'summary', 'explain', 'story', 'review'].includes(b.task)) throw new Error(t('ai.err.badTask', { task: String(b.task) }));
   if (!b.provider || !b.model) throw new Error(t('ai.err.pickModel'));
-  const { system, messages } = buildPrompt(cfg, p, b, extra);
-  const key = b.task === 'chat' ? '' : createHash('sha1').update(JSON.stringify([curLang(), b.task, b.provider, b.model, b.effort, b.files, b.view, b.level, b.target, b.tool, p.head, extra])).digest('hex');
+  let { system, messages, dropped } = buildPrompt(cfg, p, b, extra);
+  const key = b.task === 'chat' ? '' : sha1([curLang(), b.task, b.provider, b.model, b.effort, b.files, b.view, b.level, b.target, b.tool, p.head, extra]);
   const hit = key ? cache.get(key) : undefined;
   if (hit) { yield hit; return; }
-  let text = '';
-  for await (const c of stream(cfg, b.provider, { system, messages, model: b.model, effort: b.effort || (b.task === 'summary' ? 'low' : undefined), maxTokens: b.task === 'summary' ? 4000 : undefined, signal, usage })) { text += c; yield c; }
-  // answers that ended in a refusal or a cut-off (or that are an error) are not worth remembering
-  if (key && text && !text.startsWith('[') && !text.includes(t('llm.refusal')) && !text.includes(t('llm.maxTokens'))) cache.set(key, text);
+  const more = newUsage(); // the batch summaries' tokens, added to the answer's at the end (the provider overwrites `usage`)
+  try {
+    if (dropped.length && b.task !== 'explain') {
+      const notes = await digest(cfg, p, b, dropped, signal, more);
+      if (notes) ({ system, messages } = buildPrompt(cfg, p, b, extra + t('ai.extra.digest') + notes));
+    }
+    let text = '';
+    for await (const c of stream(cfg, b.provider, { system, messages, model: b.model, effort: b.effort || (b.task === 'summary' ? 'low' : undefined), maxTokens: b.task === 'summary' ? 4000 : undefined, signal, usage })) { text += c; yield c; }
+    if (key && keepable(text)) cache.set(key, text);
+  } finally {
+    if (usage) { for (const k of ['in', 'out', 'cr', 'cw'] as const) usage[k] += more[k]; if (more.cost) usage.cost = (usage.cost ?? 0) + more.cost; }
+  }
+}
+
+const sha1 = (o: unknown) => createHash('sha1').update(JSON.stringify(o)).digest('hex');
+// answers that ended in a refusal or a cut-off (or that are an error) are not worth remembering
+const keepable = (text: string) => !!text && !text.startsWith('[') && !text.includes(t('llm.refusal')) && !text.includes(t('llm.maxTokens'));
+const DIGEST_BATCHES = 6; // at most this many extra calls per question; files left after that stay out (the context says it was trimmed)
+
+// Big PRs: the files that did not fit in the context are summarized in batches that each fit, and those summaries
+// travel with the question. Each batch is cached like any answer, so only the first question about a PR pays for them.
+async function digest(cfg: Config, p: Payload, b: AskBody, dropped: string[], signal: AbortSignal | undefined, u: Usage): Promise<string> {
+  let left = dropped, out = '';
+  for (let i = 0; left.length && i < DIGEST_BATCHES; i++) {
+    const missed: string[] = [];
+    const ctx = buildContext(p, left, 1, undefined, CAP, 15, missed);
+    if (missed.length >= left.length) break; // not even one file fits: stop instead of looping
+    const key = sha1([curLang(), 'digest', b.provider, b.model, p.head, left.filter(f => !missed.includes(f))]);
+    let text = cache.get(key);
+    if (text === undefined) {
+      const one = newUsage();
+      text = '';
+      const system = [t('ai.role'), t('ai.replyIn', { language: cfg.language ?? t('lang.name') }), t('ai.untrusted'), t('ai.digest'), t('ai.contextHeader') + ctx].join('\n');
+      try { for await (const c of stream(cfg, b.provider, { system, messages: [{ role: 'user', content: t('ai.msg.digest') }], model: b.model, effort: 'low', maxTokens: 2000, signal, usage: one })) text += c; }
+      finally { for (const k of ['in', 'out', 'cr', 'cw'] as const) u[k] += one[k]; if (one.cost) u.cost = (u.cost ?? 0) + one.cost; }
+      if (keepable(text)) cache.set(key, text);
+    }
+    out += text.trim() + '\n';
+    left = missed;
+  }
+  return out;
 }

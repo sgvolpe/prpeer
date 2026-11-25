@@ -3,15 +3,15 @@
 ## Integrations (plugged in from Connections, like Jira)
 Today there are: GitHub, AI providers and Jira (`/api/integrations`, one row per integration in `web/home.js`).
 Ideas, in order of value for reviewing a PR:
-- **CI status** of the PR (GitHub checks): what failed and in which file, to cross it with the story.
+- **CI status**: failed checks already mark their files on the map; still missing: cross them with the story pages and pass them to the AI reviews.
 - **Linear / GitHub Issues** as an alternative to Jira (same flow: key in title/branch/commits → ticket content).
 - **Sentry**: recent errors in the files the PR touches.
 - **Confluence / Notion**: design doc linked from the ticket.
 - **Slack**: post the story or the result of a review to a channel (outbound action: ask for confirmation).
 
 ## Review
-- Keep the model context from being cut off on large PRs (today ~80,000 characters): summarize per file and ask for the detail in parts.
-- Show progress while the AI builds the story.
+- Show progress while the AI builds the story (on big PRs the batch summaries run first, with no feedback yet).
+- Reviewed marks: keep the ones whose file did not change in a new push (today a new head starts over).
 - Persist the open-folders state of the map.
 
 ## Author intents (see GUIA-PR-PEER.md)

@@ -24,6 +24,8 @@ export type Api = {
   commits(source: string, repo: string, ref?: string, page?: number, author?: string): Promise<unknown>;
   search(source: string, owner: string, kind: string, state: string, q: string, page?: number, author?: string): Promise<unknown>; // PRs or commits of all the repos of an owner
   open(body: unknown): Promise<unknown>;
+  reopen?(sid: string): Promise<boolean>; // a remembered session (opened before a restart): open it again under the same sid
+  comment?(sid: string, body: unknown): Promise<unknown>; // a line comment the user wrote, posted to the PR on its host
   clone(body: unknown): Promise<unknown>;
   connect(body: unknown): Promise<unknown>;
   disconnect(body: unknown): Promise<unknown>;
@@ -100,7 +102,11 @@ export function serve(port: number, api: Api, log?: (line: string) => void) {
         if (u === '/theme.js' || u === '/settings.js') return sendStatic(req, res, 'text/javascript; charset=utf-8', file(u.slice(1)));
         if (u === '/app.js') return sendStatic(req, res, 'text/javascript; charset=utf-8', file('app.js'));
         const m = /^\/pr\/(\w+)$/.exec(u);
-        if (m) { const d = api.page(m[1]); return d ? send(res, 200, 'text/html; charset=utf-8', mapPage(d)) : send(res, 404, 'text/html; charset=utf-8', notFoundPage()); }
+        if (m) {
+          let d = api.page(m[1]);
+          if (!d && api.reopen && await api.reopen(m[1]).catch(e => { log?.(`reopen ${m[1]} failed: ${(e as Error).message}`); return false; })) d = api.page(m[1]);
+          return d ? send(res, 200, 'text/html; charset=utf-8', mapPage(d)) : send(res, 404, 'text/html; charset=utf-8', notFoundPage());
+        }
         if (u === '/api/story') return json(res, 200, (({ jira, configured }) => ({ jira, configured }))(await api.story(q('s')) as { jira: unknown; configured: unknown }));
         if (u === '/api/meta') return json(res, 200, await api.meta(q('s')));
         if (u === '/api/usage') return json(res, 200, api.usage(q('s') || undefined));
@@ -122,6 +128,7 @@ export function serve(port: number, api: Api, log?: (line: string) => void) {
         if (u === '/api/disconnect') return json(res, 200, await api.disconnect(JSON.parse(await readBody(req, 20_000))));
         if (u === '/api/settings' && api.saveSettings) return json(res, 200, await api.saveSettings(JSON.parse(await readBody(req, 20_000))));
         if (u === '/api/cache/clear' && api.clearCache) return json(res, 200, await api.clearCache(JSON.parse(await readBody(req, 20_000))));
+        if (u === '/api/comment' && api.comment) return json(res, 200, await api.comment(q('s'), JSON.parse(await readBody(req, 40_000))));
         if (u === '/api/graph-summary') return json(res, 200, await api.graphSummary(JSON.parse(await readBody(req, 20_000))));
         if (u === '/api/clone') return json(res, 200, await api.clone(JSON.parse(await readBody(req))));
         if (u === '/api/ask') {

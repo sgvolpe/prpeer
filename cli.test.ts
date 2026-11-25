@@ -30,7 +30,7 @@ ${out.map(l => `echo '${l}'`).join('\n')}
   return { d, bin };
 }
 const collect = async (g: AsyncGenerator<string>) => { let s = ''; for await (const c of g) s += c; return s; };
-const skip = process.platform === 'win32' ? 'claude-cli does not run on native Windows' : false;
+const skip = process.platform === 'win32' ? 'the fake claude is a shell script' : false;
 
 test('claude-cli: deltas, isolation (no tools/MCP/settings), prompt through stdin and no key in the environment', { skip }, async () => {
   const { d, bin } = fake('ok');
@@ -56,7 +56,7 @@ test('claude-cli: deltas, isolation (no tools/MCP/settings), prompt through stdi
 test('claude-cli: with no deltas it uses the final result; a login error gives the hint; llmInfo detects the binary', { skip }, async () => {
   const req = { system: '', messages: [{ role: 'user' as const, content: 'q' }], model: 'm' };
   const a = fake('nodeltas'), b = fake('auth');
-  assert.equal(await collect(stream({ providers: [{ id: 'c', type: 'claude-cli', command: a.bin }] }, 'c', req)), 'Only final');
+  assert.equal(await collect(stream({ providers: [{ id: 'c', type: 'claude-cli', command: a.bin }] }, 'c', req)), 'Solo final');
   await assert.rejects(collect(stream({ providers: [{ id: 'c', type: 'claude-cli', command: b.bin }] }, 'c', req)), /OAuth session expired.*claude auth login/);
   const info = await llmInfo({ providers: [{ id: 'c', type: 'claude-cli', command: a.bin }, { id: 'x', type: 'claude-cli', command: '/no/existe' }] });
   assert.deepEqual(info.providers.map(p => p.ready), [true, false]);

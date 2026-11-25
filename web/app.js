@@ -31,6 +31,16 @@ const CL=PRD.changelog?PRD.changelog.map(([g,xs])=>[g,xs.map(E)]):null;
 const PR=`<b>${E(PRD.title)}</b>`;
 const POSKEY='prpeer:'+PRD.head;
 ttl.textContent=PRD.title;ttl.title=PRD.title;if(/^https?:\/\//.test(PRD.url||'')){const a=document.createElement('a');a.href=PRD.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='↗';a.title=$t('home.openHost');a.style.cssText='margin-left:6px;text-decoration:none';a.onclick=e=>e.stopPropagation();ttl.after(a)}wt.textContent=$t('wt.title',{head:PRD.head.slice(0,8)});document.title='PR Peer · '+PRD.title;
+// files marked as reviewed (like GitHub's Viewed), by path and per PR head: a new push starts over
+const SK='prpeer:seen:'+PRD.head;let SEEN=new Set();try{SEEN=new Set(JSON.parse(localStorage[SK]||'[]'))}catch{}
+// where the failed CI checks point (GitHub only: /api/meta brings them)
+const CI=k=>(META?.annotations||[]).filter(a=>a.path===PATHOF[k]);
+function setSeen(k,on){const p=PATHOF[k];on?SEEN.add(p):SEEN.delete(p);try{localStorage[SK]=JSON.stringify([...SEEN])}catch{}marks();if(dlg.open)drawSide()}
+// marks of the tree rows, the counter in the top bar and the map cards: reviewed and failed in CI
+function marks(){const C=Object.values(D).flat().filter(x=>x[1]=='c'&&!hidWhy(PATHOF[x[0]])).map(x=>x[0]),n=C.filter(k=>SEEN.has(PATHOF[k])).length;
+  seenN.hidden=!C.length;seenN.textContent=$t('seen.count',{n,t:C.length});seenN.classList.toggle('all',n==C.length);
+  for(const k in treeFile){treeFile[k].classList.toggle('seen',SEEN.has(PATHOF[k]));treeFile[k].classList.toggle('cifail',CI(k).length>0)}
+  bump()}
 const ch=f=>info(f).fns.reduce((s,x)=>s+(x[3]??x[2].split('\n').length),0);
 const item=(f,[s,e,c])=>`<div class="fn"><code>${esc(s)}</code> <span class="doc">${E(f)}</span><p>${e}</p>${c?`<pre>${esc(c)}</pre>`:''}</div>`;
 function fnList(fs){const it=fs.flatMap(f=>info(f).fns.map(x=>[f,x])).sort((a,b)=>(b[1][3]??0)-(a[1][3]??0)),h=it.slice(0,4).map(x=>item(...x)).join(''),t=it.slice(4);
@@ -138,6 +148,7 @@ function render(){
     if(zl==0)h=`<p>${i.what}</p>`+connHtml(k);
     else if(zl==1)h=`<h4>${$t('ctx.whatChanged')}</h4><p>${i.what}</p>`+(i.doc?`<h4>Docstring</h4><p class="doc">${esc(i.doc)}</p>`:'')+connHtml(k);
     else h=(i.doc?`<h4>Docstring</h4><p class="doc">${esc(i.doc)}</p>`:'')+`<h4>${$t('ctx.fnsLines')}</h4>`+(fnList([k])||`<p>${$t('ctx.noChanges')}</p>`)+connHtml(k);
+    const ci=CI(k);if(ci.length)h=`<h4>${$t('ci.title')}</h4>`+ci.map(a=>`<div class="fd g"><b>${E(a.check)}</b> · L${a.line}${a.end>a.line?'–'+a.end:''} — ${E(a.message)}</div>`).join('')+h;
   }else{
     const lead=!sels.length?PR:`<b>${esc(subj)}</b>: `+(chg.map(f=>info(f).what).join(' ')||$t('ctx.noChangesShort'));
     if(zl==0)h=`<p>${lead}</p><p class="doc">${$t('sum.files',{n:chg.length})}${sels.length?'':' · '+nl.textContent}</p>`;
@@ -181,8 +192,8 @@ const stat=f=>{const t=Object.values(D).flat().find(x=>x[0]==f);return t[2]!=nul
 const selFiles=()=>{const fl=sels.length?[...new Set(sels.flatMap(x=>x.t=='dir'?D[x.k].map(y=>y[0]):[x.k]))]:Object.values(D).flat().map(x=>x[0]).filter(k=>!hidWhy(PATHOF[k]));return fl.filter(f=>info(f).fns.length).sort((a,b)=>ch(b)-ch(a))};
 function hunkLines(fi,x){return x[2].split('\n').map((l,i)=>[l[0]=='-'?'-':'+',l.slice(2),...(x[6]?.[i]||[])])}
 let pe=1,dl=0;
-function diffHtml(f){pe=1;dl=0;const T=M[f].total;return ordered(f).map(([x,i])=>{const st=x[4],gap=st>pe?`<div class="gap">${$t('diff.gap',{n:st-pe,a:pe,b:st-1})}</div>`:'';let ol=st,nl=st+dl;const n0=nl;
-  const rows=hunkLines(i,x).map(([k,t,o,n])=>{const lo=o??'',ln=n??'';return `<div class="dl ${k=='+'?'p':k=='-'?'m':''}"><i>${lo}</i><i>${ln}</i><span>${k}${esc(t)}</span></div>`}),rest=rows.slice(30);
+function diffHtml(f){pe=1;dl=0;const T=M[f].total,ann=CI(f);return ordered(f).map(([x,i])=>{const st=x[4],gap=st>pe?`<div class="gap">${$t('diff.gap',{n:st-pe,a:pe,b:st-1})}</div>`:'';let ol=st,nl=st+dl;const n0=nl;
+  const rows=hunkLines(i,x).map(([k,t,o,n])=>{const lo=o??'',ln=n??'',a=n!=null&&ann.find(a=>n>=a.line&&n<=a.end);return `<div class="dl ${k=='+'?'p':k=='-'?'m':''}${a?' ci':''}"${a?` data-ci="${EA(a.check+': '+a.message)}"`:''}><i>${lo}</i><i>${ln}</i><span>${k}${esc(t)}</span></div>`}),rest=rows.slice(30);
   const ls=hunkLines(i,x);dl+=ls.filter(l=>l[0]=='+').length-ls.filter(l=>l[0]=='-').length;pe=st+x[5];
   return gap+`<div class="hk" id="h${i}"><div class="hh">@@ L${st}–${st+x[5]-1} @@ ${esc(x[0])} <span class="doc">${esc(x[1].replace(/<[^>]+>/g,''))}</span></div>${rows.slice(0,30).join('')}${rest.length?`<details><summary>${$t('diff.moreLines',{n:rest.length})}</summary>${rest.join('')}</details>`:''}</div>`}).join('')+`<div class="gap">${$t('diff.gapEnd',{n:T-pe,t:T})}</div>`}
 let dFiles=[],dAct='';
@@ -202,8 +213,9 @@ async function drawDiff(){
   const f_=dAct;dmain.innerHTML=`<p class="doc">${$t('diff.loading')}</p>`;
   try{await ensureLoaded(f_)}catch(e){dmain.innerHTML='<p class="err">'+esc(e.message)+'</p>';return}
   if(f_!=dAct)return; // switched file while loading
-  dside.innerHTML=dFiles.map(f=>`<div class="df ${f==dAct?'on':''}" onclick="dAct=${J(f)};drawDiff()">${E(f)}<small>${stat(f)}</small></div>`+(f==dAct?mm(f,1)+ordered(f).map(([x,i])=>`<div class="dfn" onclick="document.getElementById('h${i}').scrollIntoView()">${esc(x[0])}<small>L${x[4]} · ${x[3]??''}</small></div>`).join(''):'')).join('');
-  dmain.innerHTML=`<h2>${E(dAct)} <small>${stat(dAct)}</small></h2><div class="sum"><p>${summary([dAct],2,dAct)}</p>${moodHtml([dAct])}</div><p class="doc">${esc(info(dAct).doc)}</p>`+diffHtml(dAct);dmain.scrollTop=0}
+  drawSide();
+  dmain.innerHTML=`<h2>${E(dAct)} <small>${stat(dAct)}</small><label class="seenbox" title="${EA($t('seen.tip'))}"><input type="checkbox" ${SEEN.has(PATHOF[dAct])?'checked':''} onchange="setSeen(${J(dAct)},this.checked)"> ${$t('seen.box')}</label></h2><div class="sum"><p>${summary([dAct],2,dAct)}</p>${moodHtml([dAct])}</div><p class="doc">${esc(info(dAct).doc)}</p>`+diffHtml(dAct);dmain.scrollTop=0}
+function drawSide(){dside.innerHTML=dFiles.map(f=>`<div class="df ${f==dAct?'on':''}${SEEN.has(PATHOF[f])?' seen':''}" onclick="dAct=${J(f)};drawDiff()">${E(f)}<small>${stat(f)}</small></div>`+(f==dAct?mm(f,1)+ordered(f).map(([x,i])=>`<div class="dfn" onclick="document.getElementById('h${i}').scrollIntoView()">${esc(x[0])}<small>L${x[4]} · ${x[3]??''}</small></div>`).join(''):'')).join('')}
 function openDiff(list,act){dFiles=list||selFiles();if(!dFiles.length){if(act){dside.innerHTML='';dmain.innerHTML=`<h2>${esc(act)}</h2><p class="doc">${$t('file.noRel')}</p>`;dlg.showModal()}return} // unchanged file: say so instead of doing nothing
 if(!dFiles.includes(act)){if(act&&info(act).fns.length)dFiles=[act,...dFiles];else act=dFiles[0]}dAct=act||dFiles[0];dlg.showModal();drawDiff()}
 // full diff: hover = tooltip, right click = menu with explanations
@@ -213,8 +225,8 @@ function lineInfo(t){const hk=t.closest&&t.closest('.hk');if(!hk)return null;
   if(hh)return{x,head:1,title:x[0],note:x[1]};
   if(!r)return null;
   const k=r.classList.contains('p')?'+':r.classList.contains('m')?'-':' ',txt=r.querySelector('span').textContent.slice(1),ns=[...r.querySelectorAll('i')].map(i=>i.textContent);
-  const n=(NOTE.find(a=>a[0].test(txt))||[])[1]||$t(k=='+'?'diff.note.add':k=='-'?'diff.note.del':'diff.note.ctx');
-  return{x,k,txt,ln:ns[1]||ns[0],title:x[0],note:n}}
+  const n=r.dataset.ci?'<span class="err">✗ CI · '+esc(r.dataset.ci)+'</span>':(NOTE.find(a=>a[0].test(txt))||[])[1]||$t(k=='+'?'diff.note.add':k=='-'?'diff.note.del':'diff.note.ctx');
+  return{x,k,txt,ln:ns[1]||ns[0],o:ns[0],n:ns[1],title:x[0],note:n}}
 const cn=f=>{const c=conn(f);return [c.uses.length?$t('cn.uses',{list:c.uses.join(', ')}):'',c.by.length?$t('cn.usedBy',{list:c.by.join(', ')}):''].filter(Boolean).join(' · ')};
 const tip=document.createElement('div'),menu=document.createElement('div');tip.id='dtip';menu.id='dmenu';dlg.append(tip,menu);let cur=null;
 dmain.onmousemove=e=>{const i=lineInfo(e.target);if(!i){tip.style.display='none';return}
@@ -222,13 +234,27 @@ dmain.onmousemove=e=>{const i=lineInfo(e.target);if(!i){tip.style.display='none'
   tip.style.display='block';tip.style.left=Math.min(e.clientX+14,innerWidth-380)+'px';tip.style.top=e.clientY+16+'px'};
 dmain.onmouseleave=()=>tip.style.display='none';
 dmain.oncontextmenu=e=>{const i=lineInfo(e.target);if(!i)return;e.preventDefault();cur=i;tip.style.display='none';
-  menu.innerHTML=`<div onclick="explain(0)">${$t(i.head?'menu.explainSec':'menu.explainLine')}</div>${i.head?'':`<div onclick="explain(1)">${$t('menu.explainWhole')}</div>`}<div onclick="explain(0);aiExplain(${i.head?1:0})">${$t('ai.explain')}</div><div onclick="askChat()">${$t('menu.askChat')}</div>`;
+  menu.innerHTML=`<div onclick="explain(0)">${$t(i.head?'menu.explainSec':'menu.explainLine')}</div>${i.head?'':`<div onclick="explain(1)">${$t('menu.explainWhole')}</div>`}<div onclick="explain(0);aiExplain(${i.head?1:0})">${$t('ai.explain')}</div><div onclick="askChat()">${$t('menu.askChat')}</div>${PRD.canComment&&!i.head?`<div onclick="cmtOpen()">${$t('cmt.menu')}</div>`:''}`;
   menu.style.display='block';menu.style.left=Math.min(e.clientX,innerWidth-240)+'px';menu.style.top=Math.min(e.clientY,innerHeight-130)+'px'};
 dlg.addEventListener('click',()=>menu.style.display='none');
 function explain(full){menu.style.display='none';const i=cur,sec=full||i.head;
   dexp.hidden=false;dexp.innerHTML=`<a class="x" onclick="dexp.hidden=true">✕</a><b>${$t(sec?'exp.section':'exp.line')} · ${esc(i.title)}${sec?'':' · L'+i.ln}</b>`
    +(sec?'':`<p><code>${esc(i.txt.trim())}</code> — ${i.note}</p>`)+`<p>${i.x[1]}</p>`+(sec?`<pre>${esc(i.x[2])}</pre>`:'')
    +`<p class="doc">${esc(dAct)}${info(dAct).doc?' — '+esc(info(dAct).doc):''}</p><p class="doc">${cn(dAct)}</p><div class="ai"><button class="aib" onclick="aiExplain(${sec?1:0})">🤖 ${$t('ai.explain')}</button><div id="aiexp"></div></div>`}
+// A comment on this line of the PR on GitHub. The user writes it and confirms it: nothing is posted without both, and the AI never posts.
+let CMT=null;
+function cmtOpen(){menu.style.display='none';const i=cur,side=i.k=='-'?'LEFT':'RIGHT',line=+(side=='LEFT'?i.o:i.n);if(!line)return;
+  CMT={path:PATHOF[dAct],line,side};
+  dexp.hidden=false;dexp.innerHTML=`<a class="x" onclick="dexp.hidden=true">✕</a><b>${$t('cmt.title')} · ${E(dAct)}:${line}${side=='LEFT'?' ('+$t('cmt.old')+')':''}</b><p><code>${esc(i.txt.trim())}</code></p>`
+   +`<textarea id="cmtx" rows="4" maxlength="20000" placeholder="${EA($t('cmt.ph'))}"></textarea><p class="doc">${$t('cmt.note')}</p><button class="aib" id="cmtb" onclick="cmtSend()">${$t('cmt.send')}</button> <span id="cmto"></span>`;
+  cmtx.focus()}
+async function cmtSend(){const t=cmtx.value.trim(),c=CMT;if(!t||!c)return;
+  if(!confirm($t('cmt.confirm',{where:c.path+':'+c.line,pr:META?.id?'#'+META.id:''})))return;
+  cmtb.disabled=true;cmto.textContent='…';
+  try{const r=await fetch('/api/comment?s='+PRD.sid,{method:'POST',headers:{'content-type':'application/json','x-prpeer':'1'},body:JSON.stringify({...c,text:t})}),j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
+    cmtx.disabled=true;cmto.innerHTML=$t('cmt.sent')+(/^https:\/\//.test(j.url||'')?` <a href="${EA(j.url)}" target="_blank" rel="noopener noreferrer">${$t('cmt.view')}</a>`:'')}
+  catch(e){cmtb.disabled=false;cmto.innerHTML='<span class="err">'+E(e.message)+'</span>'}}
 function askChat(){const i=cur;dlg.close();q.value=$t(i.head?'ask.explainSec':'ask.explainLine',{what:i.head?i.title:i.txt.trim(),f:dAct});f.requestSubmit()}
 document.body.insertAdjacentHTML('beforeend',`<datalist id="allf">${Object.keys(M).map(k=>`<option value="${EA(k)}">`).join('')}</datalist>`);
 // ---- AI: provider / model / effort. Config and keys live on the server; here you only choose.
@@ -302,7 +328,7 @@ function metaHtml(){const m=META||{checks:[]},url=/^https?:\/\//.test(META?.url|
    +(ck.length?chip(bad.length?'bad':wip.length?'wip':'ok',E($t('meta.checks',{ok,n:ck.length})),tip):'')
    +chip('',E('💬 '+m.comments),$t('meta.commentsTip',{n:m.comments}))
    +(m.conflicts===true?chip('bad',E($t('meta.conflicts'))):m.conflicts===false&&m.state=='open'?chip('ok',E('✓ '+$t('meta.clean'))):'')+extra+`</div>`}
-fetch('/api/meta?s='+PRD.sid).then(r=>r.ok?r.json():null).then(j=>{META=j;if(j)render()}).catch(()=>{});
+fetch('/api/meta?s='+PRD.sid).then(r=>r.ok?r.json():null).then(j=>{META=j;if(j){render();marks()}}).catch(()=>{});
 // AI summary (remembered per selection + zoom + model)
 const aiSum={};
 const sumKey=()=>(llmNow(),JSON.stringify([sels.map(x=>x.t+x.k),zl,llm.provider,llm.model,llm.effort]));
@@ -506,7 +532,7 @@ function applyHidden(){
   const n=hiddenN();hidn.textContent=n?$t('hide.count',{n}):'';
   lnkT.style.display=PRD.linked.length?'':'none';
   lnkT.textContent=hide.linked?$t('hide.showLinked',{n:PRD.linked.length}):$t('hide.hideLinked');
-  saveHide();drawChips();refresh()}
+  saveHide();drawChips();refresh();marks()}
 lnkT.onclick=()=>{hide.linked=!hide.linked;applyHidden();drawTree()};
 // right-click actions: on a card, a folder or the empty map (the hide/show items go after them)
 const PIN=new Set(); // cards pinned open: always full focus, and always context for the AI
@@ -519,6 +545,7 @@ function actionItems(t){
       [$t('act.explain'),()=>{sels=[{t:'file',k}];openKey=k;render();bump();askIn($t('ask.explainFile',{f:k}))}]);
     if(n)it.push([$t('act.relations',{n}),()=>relate(k)]);
     if(sels.length>1)it.push([$t('act.relateN',{n:sels.length}),()=>askIn($t('ask.relateN',{list:sels.map(x=>x.k).join(', ')}))]);
+    if(info(k).fns.length){const s=SEEN.has(PATHOF[k]);it.push([$t(s?'act.unseen':'act.seen'),()=>setSeen(k,!s)])}
     it.push([$t('act.center'),()=>mapCtrl.focus?.(k)],[$t('act.copy'),()=>navigator.clipboard?.writeText(PATHOF[k])]);
     if(!hidWhy(PATHOF[k]))it.push([$t('act.onlyThis'),()=>{hide.only=PATHOF[k]}]);
   }else if(t?.t=='dir'){const ks=D[t.k].map(x=>x[0]),d=DIRRAW[t.k];
@@ -588,7 +615,7 @@ const mapCtrl=window.mountMap?window.mountMap(document.getElementById('rf'),{
   data:mapData(),posKey:POSKEY,
   snapshot:()=>mapStore.snap,subscribe:f=>{mapStore.subs.add(f);return()=>mapStore.subs.delete(f)},
   hidden:k=>!!hidWhy(PATHOF[k]),mood:k=>{const m=mood(k);return{l:m.l,why:m.why}},
-  pinned:()=>PIN,
+  pinned:()=>PIN,reviewed:k=>SEEN.has(PATHOF[k]),ci:k=>{const a=CI(k);return a.length?a.map(x=>`${x.check} · L${x.line}: ${x.message}`):null},
   onView:v=>{VIEW=v;const b=document.getElementById('inview');if(b)b.innerHTML=viewChips()},
   onLevel:z=>{if(z!==zl){zl=z;render()}},
   cardClick:(k,e)=>cardClick(k,e),dirClick:(d,e)=>pick({t:'dir',k:d},e.shiftKey||e.ctrlKey||e.metaKey),

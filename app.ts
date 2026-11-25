@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { analyze } from './analyze.ts';
 import { ask, type AskBody, type Payload } from './ask.ts';
@@ -28,6 +29,14 @@ const authorOf = (a?: string) => { // login, email or name (no odd characters an
 const pageOf = (p?: number) => (Number.isInteger(p) && p! >= 1 && p! <= 100 ? p! : 1);
 // the message is already localized (t() at the call site); `code` is what the client switches on
 const coded = (msg: string, code: string, status = 400) => Object.assign(new Error(msg), { code, status });
+
+// What each session opened from the app was (the last 50), so its /pr/<sid> link reopens it after a restart.
+type Opened = { sid: string; source: string; repo: string; kind: 'pr' | 'commit'; id: string };
+const openedFile = () => join(process.env.PRPEER_HOME ?? join(homedir(), '.prpeer'), 'sessions.json');
+const readOpened = (): Opened[] => { try { const a = JSON.parse(readFileSync(openedFile(), 'utf8')); return Array.isArray(a) ? a : []; } catch { return []; } };
+const remember = (o: Opened) => {
+  try { mkdirSync(dirname(openedFile()), { recursive: true }); writeFileSync(openedFile(), JSON.stringify([...readOpened().filter(x => x.sid !== o.sid), o].slice(-50))); } catch { /* best effort: the link just will not survive */ }
+};
 
 // usual clone folders; missing ones are skipped. Desktop last: the scan stops after 5000 folders in total
 export const DEFAULT_REPO_DIRS = ['~/repos', '~/code', '~/projects', '~/src', '~/dev', '~/git', '~/source/repos', '~/Documents/GitHub', '~/Desktop'];
@@ -75,8 +84,8 @@ export function createApp(cfg: Config, extraDirs: string[] = []) {
   // ---- sessions: one analyzed PR/commit = one worktree + its payload
   const sessions = new Map<string, { payload: ReturnType<typeof analyze>['payload']; slim: unknown; cleanup: () => void; meta?: { source: string; repo: string; kind: string; id: string } }>();
   let initial: string | undefined;
-  const addSession = (payload: ReturnType<typeof analyze>['payload'], cleanup: () => void, isInitial = false, meta?: { source: string; repo: string; kind: string; id: string }) => {
-    const sid = randomBytes(4).toString('hex');
+  const addSession = (payload: ReturnType<typeof analyze>['payload'], cleanup: () => void, isInitial = false, meta?: { source: string; repo: string; kind: string; id: string }, reuse?: string) => {
+    const sid = reuse ?? randomBytes(4).toString('hex');
     sessions.set(sid, { payload, slim: slimPayload(payload as never), cleanup, meta });
     if (isInitial) initial = sid;
     while (sessions.size > (readSettings().maxSessions ?? MAX_SESSIONS)) {
@@ -147,10 +156,31 @@ export function createApp(cfg: Config, extraDirs: string[] = []) {
   // open and clone touch git: one at a time
   let chain: Promise<unknown> = Promise.resolve();
   const exclusive = <T>(f: () => Promise<T>) => { const p = chain.then(f, f); chain = p.catch(() => {}); return p; };
+  const openNow = async (b: unknown, reuse?: string) => {
+    const { source, repo, kind, id } = (b ?? {}) as { source: string; repo: string; kind: 'pr' | 'commit'; id: string };
+    if ((kind !== 'pr' && kind !== 'commit') || typeof id !== 'string' || !REF.test(id) || !okRepo(repo)) throw coded(t('err.badRequest'), 'bad_request');
+    const dir = dirFor(repo);
+    if (!dir) throw coded(t('err.needsClone', { repo }), 'needs_clone', 409);
+    const r = await pick(source).resolve(repo, kind, id, dir);
+    prepare(dir, r);
+    const a = analyze({ repo: dir, title: r.title, baseRef: r.baseRef, head: r.head, moodCfg: cfg.mood });
+    return addSession(r.url ? { ...a.payload, url: r.url } : a.payload, a.cleanup, false, { source, repo, kind, id }, reuse);
+  };
 
   const api: Api = {
     initial: () => initial,
-    page: sid => { const s = sessions.get(sid); return s && { ...(s.slim as object), sid }; },
+    page: sid => { const s = sessions.get(sid); return s && { ...(s.slim as object), sid, canComment: s.meta?.kind === 'pr' && !!sources.find(x => x.id === s.meta!.source)?.comment }; },
+    // A comment on one line of the PR, written and sent by the user (the UI asks for confirmation). The only write prpeer
+    // does on the host: the AI never calls it. The line must be one of the PR's changed lines, as the host requires.
+    comment: async (sid, body) => {
+      const s = session(sid), m = s.meta, src = m?.kind === 'pr' && okRepo(m.repo) ? pick(m.source) : undefined;
+      if (!m || !src?.comment) throw coded(t('err.noComment'), 'bad_request');
+      const { path, line, side, text } = (body ?? {}) as { path?: unknown; line?: unknown; side?: unknown; text?: unknown };
+      const p = s.payload as unknown as Payload & { head: string };
+      const okLine = p.files.find(f => f.path === path)?.sections.some(x => x.lines.some(l => side === 'LEFT' ? l.k === '-' && l.o === line : side === 'RIGHT' && l.k === '+' && l.n === line));
+      if (typeof text !== 'string' || !text.trim() || text.length > 20_000 || !okLine) throw coded(t('err.badRequest'), 'bad_request');
+      return src.comment(m.repo, m.id, { path: path as string, line: line as number, side: side as 'LEFT' | 'RIGHT', body: text, commit: p.head });
+    },
     info: () => llmInfo(cfg),
     connect: async body => {
       const { target, secret, url, email } = (body ?? {}) as { target?: unknown; secret?: unknown; url?: unknown; email?: unknown };
@@ -259,14 +289,17 @@ export function createApp(cfg: Config, extraDirs: string[] = []) {
       return s.search(kind, owner, { q: q.slice(0, 100), state, page: pageOf(page), author: authorOf(author) });
     },
     open: b => exclusive(async () => {
-      const { source, repo, kind, id } = b as { source: string; repo: string; kind: 'pr' | 'commit'; id: string };
-      if ((kind !== 'pr' && kind !== 'commit') || typeof id !== 'string' || !REF.test(id) || !okRepo(repo)) throw coded(t('err.badRequest'), 'bad_request');
-      const dir = dirFor(repo);
-      if (!dir) throw coded(t('err.needsClone', { repo }), 'needs_clone', 409);
-      const r = await pick(source).resolve(repo, kind, id, dir);
-      prepare(dir, r);
-      const a = analyze({ repo: dir, title: r.title, baseRef: r.baseRef, head: r.head, moodCfg: cfg.mood });
-      return { sid: addSession(r.url ? { ...a.payload, url: r.url } : a.payload, a.cleanup, false, { source, repo, kind, id }) };
+      const sid = await openNow(b), { source, repo, kind, id } = b as Opened; // openNow validated them
+      remember({ sid, source, repo, kind, id });
+      return { sid };
+    }),
+    // a /pr/<sid> link from before a restart (or a session closed for age): open the same thing again under the same sid
+    reopen: sid => exclusive(async () => {
+      if (sessions.has(sid)) return true;
+      const o = readOpened().find(x => x.sid === sid);
+      if (!o || !/^[0-9a-f]{8}$/.test(sid)) return false;
+      await openNow(o, sid);
+      return true;
     }),
     clone: b => exclusive(async () => {
       const { repo } = b as { repo: string };

@@ -5,6 +5,12 @@ All notable changes to PR Peer. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Added
+- Mark files as reviewed (right-click a card or the *Reviewed* box in the diff): they fade on the map, get a ✓ in the worktree and count in the top bar. Stored per PR head.
+- CI failures on the map: annotations of failed GitHub checks mark the card, the worktree row, the file panel and the diff lines they point at.
+- Comment on a diff line of a GitHub PR (right-click a line → *Comment on GitHub*). You write it and confirm it; the server checks the line is part of the PR. It is the only write PR Peer does on GitHub, and the AI never triggers it.
+- Big PRs: the files that do not fit in the AI context are summarized in batches (cached) and those summaries travel with the question, instead of being left out.
+- `/pr/<id>` links of sessions opened from the app reopen after a restart or after being closed for age (`~/.prpeer/sessions.json`).
+- The Claude Code subscription provider works on native Windows with the native `claude.exe`.
 - One-step installers, `install.ps1` (Windows) and `install.sh` (macOS, Linux, WSL). They install what is missing (git, Node 24, Python 3, optionally gh) with winget, Homebrew, nvm or the distro's package manager, asking first (`-Yes` / `-y` to accept all).
 - On Windows, the installer detects a real Python hidden behind the Microsoft Store alias and offers to put it first in the user `PATH`.
 - `prpeer doctor`: checks Node, git, Python, dependencies and build, the `prpeer` command, GitHub credentials, the AI provider and the port, with the command that fixes each problem.

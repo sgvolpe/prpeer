@@ -261,7 +261,12 @@ Three panels: **worktree** on the left, **map** in the middle and **Assistant** 
 | `[` / `]` | Close / open one folder level |
 
 **Right-click menu.**
-- On a card: pin it open (always in the AI context), explain it with AI, show its relations, explain how the selected N relate, center, copy path, show only this file.
+- On a card: pin it open (always in the AI context), explain it with AI, show its relations, explain how the selected N relate, mark it as reviewed, center, copy path, show only this file.
+- On a line of the full diff (GitHub PRs only): **Comment on GitHub** opens a box where you write the comment; it is posted only after you press *Post to GitHub* and confirm. The AI never posts.
+
+**Review progress.** Files you mark as reviewed (right-click a card, or the *Reviewed* box in the diff) fade on the map, get a ✓ in the worktree and count in the top bar (`✓ 3/7 reviewed`). It is stored in the browser per PR head, so a new push starts over.
+
+**CI failures.** On GitHub PRs, the annotations of failed checks mark their files: a red edge and `✗ CI` on the card, `✗` in the worktree, the failure at the top of the file's panel and a red edge on the lines it points at in the diff.
 - On a folder: fit it, keep only this one open, explain the module.
 - On the background: fit everything, open/close one level, close all, use what I see as context.
 
@@ -339,9 +344,9 @@ They work from **⚙ Settings → Connections** on the home screen or with envir
 | What | How |
 |---|---|
 | Local repos | No setup. Looks for clones in `~/repos`, `~/code`, `~/projects`, `~/src`, `~/dev`, `~/git`, `~/source/repos`, `~/Documents/GitHub` and `~/Desktop`. Change them in **⚙ Settings → Local repos** (saved in `~/.prpeer/settings.json`, it wins over `repoDirs` in `config.json`). |
-| GitHub (read-only) | `export GITHUB_TOKEN=...` or `gh auth login` on the machine where prpeer runs. |
+| GitHub (read-only) | `export GITHUB_TOKEN=...` or `gh auth login` on the machine where prpeer runs. Read-only is enough; only commenting on a line from the diff needs write access to pull requests (`gh auth login` already has it). |
 | AI with an API | `export ANTHROPIC_API_KEY=...`, or another OpenAI-compatible provider (OpenAI, Ollama, LM Studio, OpenRouter…) in `~/.prpeer/config.json`. |
-| AI with your subscription | Install Claude Code, run `claude auth login` and pick "Claude Code" in the chat's ⚙. It does not work on native Windows: use WSL. |
+| AI with your subscription | Install Claude Code, run `claude auth login` and pick "Claude Code" in the chat's ⚙. On Windows it needs the native `claude.exe` (official installer or `winget install Anthropic.ClaudeCode`); the npm `claude.cmd` alone is not detected. |
 | Jira (optional) | `PRPEER_JIRA_URL` links the tickets; with `PRPEER_JIRA_EMAIL` and `PRPEER_JIRA_TOKEN` it also fetches their summary, status and description. |
 
 If you do not set a default provider, prpeer picks the first one that can answer. Repos you do not have are cloned into `~/.prpeer/repos`.
@@ -387,7 +392,9 @@ It is read from the **base branch**, not the PR's: a PR cannot loosen its own ru
 - The server listens only on `127.0.0.1`, validates the `Host` header against DNS rebinding and requires its own header on POSTs against CSRF.
 - The page carries a content policy that keeps anything from leaving its origin; a PR's code is treated as untrusted data.
 - API keys never reach the browser. Those you enter from Connections are stored in `~/.prpeer/connections.json`, readable only by your user.
-- Code only travels to the AI provider you choose and only when you ask it something. What is sent is built by the server, capped at about 80,000 characters of context.
+- Code only travels to the AI provider you choose and only when you ask it something. What is sent is built by the server, capped at about 80,000 characters of context; on bigger PRs the files that do not fit are first summarized in batches (up to 6 extra requests, cached like any answer).
+- PR Peer writes to GitHub in one case only: a line comment you write in the diff and confirm. Nothing else (and never the AI) posts, pushes or changes the repo.
+- Sessions opened from the app are remembered in `~/.prpeer/sessions.json` (what was opened, no code), so a `/pr/<id>` link reopens after a restart. Saved AI answers in `~/.prpeer/answers` unused for 60 days are deleted.
 
 ## Windows and WSL
 
@@ -402,7 +409,7 @@ It is read from the **base branch**, not the PR's: a PR cannot loosen its own ru
   ```
 
 - In WSL, `~/.prpeer` is the Linux one: connections saved on Windows are not shared, add them again from **Connections**. Repos on the Windows side work with `--repo /mnt/c/...`, only slower.
-- The Claude Code subscription provider works in WSL (not on native Windows).
+- The Claude Code subscription provider works in WSL, and on native Windows with the native `claude.exe` (official installer or winget); the npm `claude.cmd` shim alone is not detected.
 
 ## Troubleshooting
 

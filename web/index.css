@@ -178,3 +178,10 @@ small{color:var(--mut)}
 .stfun{margin:0;min-height:2.6em;font-size:13px;color:var(--tx)}.stfun.in{animation:stin .4s ease-out}
 @keyframes stin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.stcards i,.stfun.in{animation:none}}
+/* reviewed files and CI failures (tree, top bar, diff) and the GitHub comment box */
+#tree .seen{color:var(--mut)}#tree .seen::after{content:' ✓';color:var(--add)}#tree .cifail::before{content:'✗ ';color:var(--del)}
+#top_ .tst .s.all{color:var(--add);border-color:var(--add)}
+.df.seen{opacity:.6}.df.seen::before{content:'✓ ';color:var(--add)}
+.seenbox{margin-left:12px;font:12px system-ui,sans-serif;color:var(--mut);cursor:pointer;vertical-align:middle}
+.dl.ci{box-shadow:inset 3px 0 var(--del)}.dl.ci i:first-child{color:var(--del)}
+#dexp textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px;font:12px ui-monospace,monospace;color:var(--tx);background:var(--inp);border:1px solid var(--bd);border-radius:6px;resize:vertical}
